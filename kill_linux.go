@@ -1,5 +1,5 @@
 // +build darwin freebsd linux netbsd openbsd
-package daemontools
+package sched_job
 
 import (
 	"fmt"

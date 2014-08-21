@@ -7,8 +7,6 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	"github.com/howeyc/fsnotify"
-	"github.com/runner-mei/cron"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -18,6 +16,9 @@ import (
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/howeyc/fsnotify"
+	"github.com/runner-mei/cron"
 )
 
 var (
@@ -396,7 +397,9 @@ func afterLoad(job *JobFromDB, arguments map[string]interface{}) error {
 					continue
 				}
 
-				if "-cp" == job.arguments[i] || "--classpath" == job.arguments[i] {
+				if "-cp" == strings.TrimSpace(job.arguments[i]) ||
+					"-classpath" == strings.TrimSpace(job.arguments[i]) ||
+					"--classpath" == strings.TrimSpace(job.arguments[i]) {
 					classpath, e := loadJavaClasspath(strings.Split(job.arguments[i+1], ";"))
 					if nil != e {
 						return errors.New("load classpath of '" + job.name + "' failed, " + e.Error())

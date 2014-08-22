@@ -409,10 +409,11 @@ func afterLoad(job *JobFromDB, arguments map[string]interface{}) error {
 						return errors.New("load classpath of '" + job.name + "' failed, it is empty.")
 					}
 
+					job.arguments[i] = strings.TrimSpace(job.arguments[i])
 					if "windows" == runtime.GOOS {
-						job.arguments[i] = strings.Join(classpath, ";")
+						job.arguments[i+1] = strings.Join(classpath, ";")
 					} else {
-						job.arguments[i] = strings.Join(classpath, ":")
+						job.arguments[i+1] = strings.Join(classpath, ":")
 					}
 				}
 			}

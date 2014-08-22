@@ -563,11 +563,12 @@ func loadJobFromMap(file string, args []map[string]interface{}) (*ShellJob, erro
 		logfile:      logfile}, nil
 }
 func loadJavaClasspath(cp []string) ([]string, error) {
-	if nil != cp && 0 != len(cp) {
+	if 0 == len(cp) {
 		return nil, nil
 	}
 	var classpath []string
 	for _, p := range cp {
+		p = strings.TrimSpace(p)
 		if 0 == len(p) {
 			continue
 		}
@@ -615,12 +616,12 @@ func loadJavaArguments(arguments []string, args []map[string]interface{}) ([]str
 
 	class := stringWithArguments(args, "java_class", "")
 	if 0 != len(class) {
-		results = append(results, class)
+		results = append(results, strings.TrimSpace(class))
 	}
 
 	jar := stringWithArguments(args, "java_jar", "")
 	if 0 != len(jar) {
-		results = append(results, jar)
+		results = append(results, strings.TrimSpace(jar))
 	}
 
 	if nil != arguments && 0 != len(arguments) {

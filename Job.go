@@ -122,8 +122,8 @@ func (self *ShellJob) do_run() {
 		environments = append(environments, self.environments...)
 	}
 
-	environments = append(environments, "shced_job_id="+fmt.Sprint(self.id))
-	environments = append(environments, "shced_job_name="+self.name)
+	environments = append(environments, "schd_job_id="+fmt.Sprint(self.id))
+	environments = append(environments, "schd_job_name="+self.name)
 	cmd.Env = environments
 
 	io.WriteString(out, cmd.Path)

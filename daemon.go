@@ -109,6 +109,8 @@ func Main() {
 
 	backend, e := newBackend(*db_drv, *db_url)
 	if nil != e {
+		fmt.Println("db_drv is", *db_drv)
+		fmt.Println("db_url is", *db_url)
 		log.Println(e)
 		return
 	}

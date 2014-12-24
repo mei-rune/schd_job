@@ -147,6 +147,7 @@ func (self *ShellJob) do_run() {
 		} else if nil != cmd.ProcessState {
 			io.WriteString(out, "run ok, exit with "+cmd.ProcessState.String()+".\r\n")
 		}
+		return
 	}
 
 	c := make(chan error, 10)

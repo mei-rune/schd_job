@@ -6,7 +6,6 @@ install:
   - go get github.com/howeyc/fsnotify
   - go get github.com/runner-mei/cron
   - go get github.com/lib/pq
-  - go get code.google.com/p/mahonia
 services:
   - postgres 
 

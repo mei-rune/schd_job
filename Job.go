@@ -10,6 +10,14 @@ import (
 	"time"
 )
 
+var (
+	RunMode string
+)
+
+func init() {
+	RunMode = os.Getenv("DAEMON_RUN_MODE")
+}
+
 const maxNum = 5
 const maxBytes = 5 * 1024 * 1024
 
@@ -19,6 +27,7 @@ type Job interface {
 type ShellJob struct {
 	id           int64
 	name         string
+	mode         string
 	execute      string
 	directory    string
 	environments []string
@@ -35,9 +44,27 @@ type JobFromDB struct {
 	created_at time.Time
 }
 
+func (self *ShellJob) isMode(mode string) bool {
+	if "" == mode || "all" == mode {
+		return true
+	}
+	if "" == self.mode || "default" == self.mode {
+		return true
+	}
+	if self.mode == mode {
+		return true
+	}
+	return false
+}
+
 func (self *ShellJob) Run() {
 	if !atomic.CompareAndSwapInt32(&self.status, 0, 1) {
 		log.Println("[" + self.name + "] running!")
+		return
+	}
+
+	if !self.isMode(RunMode) {
+		log.Println("[" + self.name + "] should run on '" + self.mode + "', but current mode is '" + RunMode + "'.")
 		return
 	}
 

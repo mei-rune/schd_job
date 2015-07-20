@@ -160,7 +160,7 @@ func newBackend(drvName, url string) (*dbBackend, error) {
 		return nil, e
 	}
 	return &dbBackend{drv: drv, db: db, dbType: DbType(drvName),
-		select_sql_string: "SELECT id, name, expression, execute, directory, arguments, environments, kill_after_interval, created_at, updated_at FROM " + *table_name + " "}, nil
+		select_sql_string: "SELECT id, name, mode, expression, execute, directory, arguments, environments, kill_after_interval, created_at, updated_at FROM " + *table_name + " "}, nil
 }
 
 func (self *dbBackend) Close() error {
@@ -336,8 +336,8 @@ func (self *dbBackend) where(params map[string]interface{}) ([]*JobFromDB, error
 
 	var results []*JobFromDB
 	for rows.Next() {
-
 		job := new(JobFromDB)
+		var mode sql.NullString
 		var directory sql.NullString
 		var arguments sql.NullString
 		var environments sql.NullString
@@ -348,6 +348,7 @@ func (self *dbBackend) where(params map[string]interface{}) ([]*JobFromDB, error
 		e = rows.Scan(
 			&job.id,
 			&job.name,
+			&mode,
 			&job.expression,
 			&job.execute,
 			&directory,
@@ -362,6 +363,10 @@ func (self *dbBackend) where(params map[string]interface{}) ([]*JobFromDB, error
 
 		if directory.Valid {
 			job.directory = directory.String
+		}
+
+		if mode.Valid {
+			job.mode = mode.String
 		}
 
 		if arguments.Valid && "" != arguments.String {

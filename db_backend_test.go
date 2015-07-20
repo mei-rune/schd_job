@@ -26,6 +26,7 @@ func backendTest(t *testing.T, cb func(backend *dbBackend)) {
 	CREATE TABLE IF NOT EXISTS ` + *table_name + ` (
 	  id                  serial   PRIMARY KEY,
 	  name                varchar(250) NOT NULL,
+	  mode                varchar(250),
 	  description         varchar(250),
 	  expression          varchar(50)  NOT NULL,
 	  execute             varchar(250) NOT NULL,

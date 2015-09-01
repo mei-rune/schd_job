@@ -28,6 +28,7 @@ type ShellJob struct {
 	id           int64
 	name         string
 	mode         string
+	enabled      bool
 	execute      string
 	directory    string
 	environments []string
@@ -60,6 +61,11 @@ func (self *ShellJob) isMode(mode string) bool {
 func (self *ShellJob) Run() {
 	if !atomic.CompareAndSwapInt32(&self.status, 0, 1) {
 		log.Println("[" + self.name + "] running!")
+		return
+	}
+
+	if !self.enabled {
+		log.Println("[" + self.name + "] is disabled.")
 		return
 	}
 

@@ -558,6 +558,7 @@ func loadJobFromMap(file string, args []map[string]interface{}) (*ShellJob, erro
 	logfile := filepath.Join(*log_path, "job_"+name+".log")
 	return &ShellJob{name: name,
 		mode:         stringWithArguments(args, "mode", ""),
+		enabled:      boolWithArguments(args, "enabled", true),
 		timeout:      timeout,
 		expression:   expression,
 		execute:      proc,

@@ -160,7 +160,7 @@ func newBackend(drvName, url string) (*dbBackend, error) {
 		return nil, e
 	}
 	return &dbBackend{drv: drv, db: db, dbType: DbType(drvName),
-		select_sql_string: "SELECT id, name, mode, expression, execute, directory, arguments, environments, kill_after_interval, created_at, updated_at FROM " + *table_name + " "}, nil
+		select_sql_string: "SELECT id, name, mode, enabled, expression, execute, directory, arguments, environments, kill_after_interval, created_at, updated_at FROM " + *table_name + " "}, nil
 }
 
 func (self *dbBackend) Close() error {
@@ -311,6 +311,74 @@ func (self *dbBackend) count(params map[string]interface{}) (int64, error) {
 	return count, nil
 }
 
+type rowScanner interface {
+	Scan(dest ...interface{}) error
+}
+
+func (self *dbBackend) scanJob(scan rowScanner) (job *JobFromDB, e error) {
+	job = new(JobFromDB)
+	var mode sql.NullString
+	var enabled sql.NullBool
+	var directory sql.NullString
+	var arguments sql.NullString
+	var environments sql.NullString
+	var kill_after_interval sql.NullInt64
+	var created_at NullTime
+	var updated_at NullTime
+	e = scan.Scan(
+		&job.id,
+		&job.name,
+		&mode,
+		&enabled,
+		&job.expression,
+		&job.execute,
+		&directory,
+		&arguments,
+		&environments,
+		&kill_after_interval,
+		&created_at,
+		&updated_at)
+	if nil != e {
+		return nil, i18n(self.dbType, self.drv, e)
+	}
+
+	if directory.Valid {
+		job.directory = directory.String
+	}
+
+	if mode.Valid {
+		job.mode = mode.String
+	}
+
+	if enabled.Valid {
+		job.enabled = enabled.Bool
+	} else {
+		job.enabled = true
+	}
+
+	if arguments.Valid && "" != arguments.String {
+		job.arguments = SplitLines(arguments.String) // arguments.String
+	}
+
+	if environments.Valid && "" != environments.String {
+		job.environments = SplitLines(environments.String) // environments.String
+	}
+
+	if kill_after_interval.Valid {
+		job.timeout = time.Duration(kill_after_interval.Int64) * time.Second
+	}
+
+	if created_at.Valid {
+		job.created_at = created_at.Time
+	}
+
+	if updated_at.Valid {
+		job.updated_at = updated_at.Time
+	}
+
+	return job, nil
+}
+
 func (self *dbBackend) where(params map[string]interface{}) ([]*JobFromDB, error) {
 	var rows *sql.Rows
 	var e error
@@ -336,57 +404,9 @@ func (self *dbBackend) where(params map[string]interface{}) ([]*JobFromDB, error
 
 	var results []*JobFromDB
 	for rows.Next() {
-		job := new(JobFromDB)
-		var mode sql.NullString
-		var directory sql.NullString
-		var arguments sql.NullString
-		var environments sql.NullString
-		var kill_after_interval sql.NullInt64
-		var created_at NullTime
-		var updated_at NullTime
-
-		e = rows.Scan(
-			&job.id,
-			&job.name,
-			&mode,
-			&job.expression,
-			&job.execute,
-			&directory,
-			&arguments,
-			&environments,
-			&kill_after_interval,
-			&created_at,
-			&updated_at)
+		job, e := self.scanJob(rows)
 		if nil != e {
-			return nil, i18n(self.dbType, self.drv, e)
-		}
-
-		if directory.Valid {
-			job.directory = directory.String
-		}
-
-		if mode.Valid {
-			job.mode = mode.String
-		}
-
-		if arguments.Valid && "" != arguments.String {
-			job.arguments = SplitLines(arguments.String) // arguments.String
-		}
-
-		if environments.Valid && "" != environments.String {
-			job.environments = SplitLines(environments.String) // environments.String
-		}
-
-		if kill_after_interval.Valid {
-			job.timeout = time.Duration(kill_after_interval.Int64) * time.Second
-		}
-
-		if created_at.Valid {
-			job.created_at = created_at.Time
-		}
-
-		if updated_at.Valid {
-			job.updated_at = updated_at.Time
+			return nil, e
 		}
 
 		results = append(results, job)
@@ -411,54 +431,7 @@ func (self *dbBackend) find(id int64) (*JobFromDB, error) {
 		row = self.db.QueryRow(self.select_sql_string+"where id = ?", id)
 	}
 
-	job := new(JobFromDB)
-	var directory sql.NullString
-	var arguments sql.NullString
-	var environments sql.NullString
-	var kill_after_interval sql.NullInt64
-	var created_at NullTime
-	var updated_at NullTime
-
-	e := row.Scan(
-		&job.id,
-		&job.name,
-		&job.expression,
-		&job.execute,
-		&directory,
-		&arguments,
-		&environments,
-		&kill_after_interval,
-		&created_at,
-		&updated_at)
-	if nil != e {
-		return nil, i18n(self.dbType, self.drv, e)
-	}
-
-	if directory.Valid {
-		job.directory = directory.String
-	}
-
-	if arguments.Valid && "" != arguments.String {
-		job.arguments = SplitLines(arguments.String) // arguments.String
-	}
-
-	if environments.Valid && "" != environments.String {
-		job.environments = SplitLines(environments.String) // environments.String
-	}
-
-	if kill_after_interval.Valid {
-		job.timeout = time.Duration(kill_after_interval.Int64) * time.Second
-	}
-
-	if created_at.Valid {
-		job.created_at = created_at.Time
-	}
-
-	if updated_at.Valid {
-		job.updated_at = updated_at.Time
-	}
-
-	return job, nil
+	return self.scanJob(row)
 }
 
 type version struct {

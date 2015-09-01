@@ -27,6 +27,7 @@ func backendTest(t *testing.T, cb func(backend *dbBackend)) {
 	  id                  serial   PRIMARY KEY,
 	  name                varchar(250) NOT NULL,
 	  mode                varchar(250),
+	  enabled             bit,
 	  description         varchar(250),
 	  expression          varchar(50)  NOT NULL,
 	  execute             varchar(250) NOT NULL,

@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -421,7 +422,11 @@ func afterLoad(job *JobFromDB, arguments map[string]interface{}) error {
 			}
 		}
 
-		job.logfile = filepath.Join(*log_path, "job_"+job.name+".log")
+		if "" != job.name {
+			job.logfile = filepath.Join(*log_path, "job_"+job.name+".log")
+		} else {
+			job.logfile = filepath.Join(*log_path, "job_"+strconv.FormatInt(job.id, 10)+".log")
+		}
 	}
 	if nil != job.environments {
 		for idx, s := range job.environments {

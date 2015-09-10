@@ -376,6 +376,10 @@ func (self *dbBackend) scanJob(scan rowScanner) (job *JobFromDB, e error) {
 		job.updated_at = updated_at.Time
 	}
 
+	if "" == job.name {
+		job.name = "auto_gen_" + strconv.FormatInt(job.id, 10)
+	}
+
 	return job, nil
 }
 

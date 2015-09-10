@@ -318,6 +318,12 @@ func reloadJobFromDB(cr *cron.Cron, error_jobs map[string]error, backend *dbBack
 		log.Println(msg)
 		return
 	}
+	if nil == sch {
+		msg := errors.New("[" + job.name + "] schedule failed, expression '" + job.expression + "' is invalid.")
+		error_jobs[id_str] = msg
+		log.Println(msg)
+		return
+	}
 	cr.Schedule(id_str, sch, job)
 }
 

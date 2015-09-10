@@ -119,3 +119,14 @@ abc`, `e1={{.a2}}`, time.Now(), time.Now())
 		}
 	})
 }
+
+func TestParse(t *testing.T) {
+	_, e := Parse("")
+	if nil == e {
+		t.Error("not error")
+	}
+	_, e = Parse("master")
+	if nil == e {
+		t.Error("not error")
+	}
+}

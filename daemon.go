@@ -150,6 +150,8 @@ func Main() {
 		cr.Schedule(fmt.Sprint(job.id), sch, job)
 	}
 
+	log.Println("all job is loaded.")
+
 	expvar.Publish("jobs", expvar.Func(func() interface{} {
 		ret := map[string]interface{}{}
 		for nm, e := range error_jobs {
@@ -185,6 +187,10 @@ func Main() {
 	}
 	// Process events
 	go func() {
+		pollInterval := *poll_interval
+		if pollInterval < 1*time.Second {
+			pollInterval = 1 * time.Second
+		}
 		for {
 			select {
 			case ev := <-watcher.Event:
@@ -231,7 +237,7 @@ func Main() {
 				}
 			case err := <-watcher.Error:
 				log.Println("error:", err)
-			case <-time.After(*poll_interval):
+			case <-time.After(pollInterval):
 				if e := reloadJobsFromDB(cr, error_jobs, backend, arguments); nil != e {
 					log.Println(e)
 				}
@@ -334,7 +340,7 @@ func Parse(spec string) (sch cron.Schedule, e error) {
 		}
 	}()
 
-	return cron.Parse(spec), nil
+	return cron.Parse(spec)
 }
 
 func search_java_home(root string) string {

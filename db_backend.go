@@ -160,7 +160,7 @@ func newBackend(drvName, url string) (*dbBackend, error) {
 		return nil, e
 	}
 	return &dbBackend{drv: drv, db: db, dbType: DbType(drvName),
-		select_sql_string: "SELECT id, name, mode, enabled, expression, execute, directory, arguments, environments, kill_after_interval, created_at, updated_at FROM " + *table_name + " "}, nil
+		select_sql_string: "SELECT id, name, mode, enabled, queue, expression, execute, directory, arguments, environments, kill_after_interval, created_at, updated_at FROM " + *table_name + " "}, nil
 }
 
 func (self *dbBackend) Close() error {
@@ -319,6 +319,7 @@ func (self *dbBackend) scanJob(scan rowScanner) (job *JobFromDB, e error) {
 	job = new(JobFromDB)
 	var mode sql.NullString
 	var enabled sql.NullBool
+	var queue sql.NullString
 	var directory sql.NullString
 	var arguments sql.NullString
 	var environments sql.NullString
@@ -330,6 +331,7 @@ func (self *dbBackend) scanJob(scan rowScanner) (job *JobFromDB, e error) {
 		&job.name,
 		&mode,
 		&enabled,
+		&queue,
 		&job.expression,
 		&job.execute,
 		&directory,
@@ -354,6 +356,10 @@ func (self *dbBackend) scanJob(scan rowScanner) (job *JobFromDB, e error) {
 		job.enabled = enabled.Bool
 	} else {
 		job.enabled = true
+	}
+
+	if queue.Valid {
+		job.queue = queue.String
 	}
 
 	if arguments.Valid && "" != arguments.String {

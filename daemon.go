@@ -64,6 +64,10 @@ func abs(s string) string {
 	return r
 }
 
+func Schedule(c *cron.Cron, id string, schedule cron.Schedule, cmd Job) {
+	c.Schedule(id, schedule, cmd)
+}
+
 func Main() {
 	flag.Parse()
 	if nil != flag.Args() && 0 != len(flag.Args()) {
@@ -137,7 +141,7 @@ func Main() {
 			log.Println("["+job.name+"] schedule failed,", e)
 			continue
 		}
-		cr.Schedule(job.name, sch, job)
+		Schedule(cr, job.name, sch, job)
 	}
 	for _, job := range jobs_from_db {
 		sch, e := Parse(job.expression)
@@ -147,7 +151,7 @@ func Main() {
 			log.Println(e)
 			continue
 		}
-		cr.Schedule(fmt.Sprint(job.id), sch, job)
+		Schedule(cr, fmt.Sprint(job.id), sch, job)
 	}
 
 	log.Println("all job is loaded.")
@@ -210,7 +214,7 @@ func Main() {
 						log.Println("["+job.name+"] schedule failed,", e)
 						break
 					}
-					cr.Schedule(job.name, sch, job)
+					Schedule(cr, job.name, sch, job)
 				} else if ev.IsDelete() {
 					nm := strings.ToLower(filepath.Base(ev.Name))
 					log.Println("[sys] delete job -", nm)
@@ -233,7 +237,7 @@ func Main() {
 						log.Println("["+job.name+"] schedule failed,", e)
 						break
 					}
-					cr.Schedule(job.name, sch, job)
+					Schedule(cr, job.name, sch, job)
 				}
 			case err := <-watcher.Error:
 				log.Println("error:", err)
@@ -330,7 +334,7 @@ func reloadJobFromDB(cr *cron.Cron, error_jobs map[string]error, backend *dbBack
 		log.Println(msg)
 		return
 	}
-	cr.Schedule(id_str, sch, job)
+	Schedule(cr, id_str, sch, job)
 }
 
 func Parse(spec string) (sch cron.Schedule, e error) {
@@ -576,6 +580,7 @@ func loadJobFromMap(file string, args []map[string]interface{}) (*ShellJob, erro
 	return &ShellJob{name: name,
 		mode:         stringWithArguments(args, "mode", ""),
 		enabled:      boolWithArguments(args, "enabled", true),
+		queue:        stringWithArguments(args, "queue", ""),
 		timeout:      timeout,
 		expression:   expression,
 		execute:      proc,

@@ -29,6 +29,7 @@ type ShellJob struct {
 	name         string
 	mode         string
 	enabled      bool
+	queue        string
 	execute      string
 	directory    string
 	environments []string
@@ -56,6 +57,10 @@ func (self *ShellJob) isMode(mode string) bool {
 		return true
 	}
 	return false
+}
+
+func (self *ShellJob) RunInQueue(failed bool) {
+	panic("NOT IMPLEMENTED")
 }
 
 func (self *ShellJob) Run() {

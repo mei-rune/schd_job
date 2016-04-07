@@ -6,12 +6,15 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"sync"
 	"sync/atomic"
 	"time"
 )
 
 var (
-	RunMode string
+	RunMode    string
+	queues     = map[string]*queueLock{}
+	queue_lock sync.Mutex
 )
 
 func init() {
@@ -20,6 +23,35 @@ func init() {
 
 const maxNum = 5
 const maxBytes = 5 * 1024 * 1024
+
+type queueLock struct {
+	lock   sync.Mutex
+	lastAt time.Time
+}
+
+func (ql *queueLock) Lock() {
+	ql.lock.Lock()
+}
+
+func (ql *queueLock) Unlock() {
+	ql.lock.Unlock()
+}
+
+func GetQueueLock(name string) *queueLock {
+	queue_lock.Lock()
+	defer queue_lock.Unlock()
+
+	q := queues[name]
+	if nil == q {
+		q = &queueLock{}
+		queues[name] = q
+	}
+
+	if len(queues) > 1000 {
+		panic("queue is too many.")
+	}
+	return q
+}
 
 type Job interface {
 	Run()
@@ -79,14 +111,25 @@ func (self *ShellJob) Run() {
 		return
 	}
 
-	go func() {
-		defer atomic.StoreInt32(&self.status, 0)
-		e := self.rotate_file()
-		if nil != e {
-			log.Println("["+self.name+"] rotate log file failed,", e)
-		}
-		self.do_run()
-	}()
+	defer atomic.StoreInt32(&self.status, 0)
+
+	if "" != self.queue {
+		q := GetQueueLock(self.queue)
+		log.Println("["+self.name+"] try entry queue", self.queue, ".")
+		q.Lock()
+		defer func() {
+			q.Unlock()
+			log.Println("["+self.name+"] exit queue", self.queue, ".")
+		}()
+		q.lastAt = time.Now()
+		log.Println("["+self.name+"] already entry queue", self.queue, ".")
+	}
+
+	e := self.rotate_file()
+	if nil != e {
+		log.Println("["+self.name+"] rotate log file failed,", e)
+	}
+	self.do_run()
 }
 
 func (self *ShellJob) rotate_file() error {

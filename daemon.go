@@ -120,7 +120,8 @@ func Main() {
 		return
 	}
 
-	job_directories := []string{filepath.Join(*root_dir, "lib", "jobs")}
+	job_directories := []string{filepath.Join(*root_dir, "lib", "jobs"),
+		filepath.Join(*root_dir, "data", "jobs")}
 	jobs_from_dir, e := loadJobsFromDirectory(job_directories, arguments)
 	if nil != e {
 		log.Println(e)

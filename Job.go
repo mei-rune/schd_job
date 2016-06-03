@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,6 +16,8 @@ var (
 	RunMode    string
 	queues     = map[string]*queueLock{}
 	queue_lock sync.Mutex
+
+	RunHook func(job Job) bool
 )
 
 func init() {
@@ -54,8 +57,11 @@ func GetQueueLock(name string) *queueLock {
 }
 
 type Job interface {
-	Run()
+	Exec()
+
+	ToMap() map[string]interface{}
 }
+
 type ShellJob struct {
 	id           int64
 	name         string
@@ -71,8 +77,7 @@ type ShellJob struct {
 	expression   string
 	status       int32
 
-	attempts         int
-	attempt_internal time.Duration
+	attributes map[string]interface{}
 }
 
 type JobFromDB struct {
@@ -94,11 +99,22 @@ func (self *ShellJob) isMode(mode string) bool {
 	return false
 }
 
+func (self *ShellJob) ToMap() map[string]interface{} {
+	return map[string]interface{}{"type": "exec2",
+		"command":    self.execute,
+		"arguments":  self.arguments,
+		"attributes": self.attributes,
+		"environments": append(self.environments,
+			"schd_job_id="+strconv.FormatInt(int64(self.id), 10),
+			"schd_job_name="+self.name)}
+}
+
 func (self *ShellJob) Run() {
 	if !atomic.CompareAndSwapInt32(&self.status, 0, 1) {
 		log.Println("[" + self.name + "] running!")
 		return
 	}
+	defer atomic.StoreInt32(&self.status, 0)
 
 	if !self.enabled {
 		log.Println("[" + self.name + "] is disabled.")
@@ -109,8 +125,6 @@ func (self *ShellJob) Run() {
 		log.Println("[" + self.name + "] should run on '" + self.mode + "', but current mode is '" + RunMode + "'.")
 		return
 	}
-
-	defer atomic.StoreInt32(&self.status, 0)
 
 	if "" != self.queue {
 		q := GetQueueLock(self.queue)
@@ -124,11 +138,17 @@ func (self *ShellJob) Run() {
 		log.Println("["+self.name+"] already entry queue", self.queue, ".")
 	}
 
+	if nil != RunHook && RunHook(self) {
+		log.Println("[" + self.name + "] run it with hook.")
+		return
+	}
+
 	e := self.rotate_file()
 	if nil != e {
 		log.Println("["+self.name+"] rotate log file failed,", e)
 	}
-	self.do_run()
+
+	self.Exec()
 }
 
 func (self *ShellJob) rotate_file() error {
@@ -175,7 +195,7 @@ func (self *ShellJob) rotate_file() error {
 	return nil
 }
 
-func (self *ShellJob) do_run() {
+func (self *ShellJob) Exec() {
 	out, e := os.OpenFile(self.logfile, os.O_APPEND|os.O_CREATE, 0)
 	if nil != e {
 		log.Println("["+self.name+"] open log file("+self.logfile+") failed,", e)

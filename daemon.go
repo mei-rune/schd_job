@@ -64,7 +64,7 @@ func abs(s string) string {
 	return r
 }
 
-func Schedule(c *cron.Cron, id string, schedule cron.Schedule, cmd Job) {
+func Schedule(c *cron.Cron, id string, schedule cron.Schedule, cmd cron.Job) {
 	c.Schedule(id, schedule, cmd)
 }
 

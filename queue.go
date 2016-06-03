@@ -1,12 +1,6 @@
 package sched_job
 
-import (
-	"sync/atomic"
-	"time"
-
-	"sync"
-)
-
+/*
 type worker struct {
 	status int32
 	C      chan *ShellJob
@@ -95,3 +89,4 @@ func newQueue() *queueThread {
 	go queue.run()
 	return queue
 }
+*/

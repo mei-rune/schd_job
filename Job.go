@@ -70,6 +70,9 @@ type ShellJob struct {
 	timeout      time.Duration
 	expression   string
 	status       int32
+
+	attempts         int
+	attempt_internal time.Duration
 }
 
 type JobFromDB struct {
@@ -89,10 +92,6 @@ func (self *ShellJob) isMode(mode string) bool {
 		return true
 	}
 	return false
-}
-
-func (self *ShellJob) RunInQueue(failed bool) {
-	panic("NOT IMPLEMENTED")
 }
 
 func (self *ShellJob) Run() {

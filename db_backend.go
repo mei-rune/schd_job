@@ -30,10 +30,11 @@ const (
 )
 
 var (
-	db_url     = flag.String("db.url", "host=127.0.0.1 dbname=tpt_models_test user=tpt password=extreme sslmode=disable", "the db url")
-	db_drv     = flag.String("db.drv", "postgres", "the db driver")
-	db_type    = flag.Int("db_type", AUTO, "the db type, 0 is auto")
-	table_name = flag.String("db_table", "sched_jobs", "the table name for jobs")
+	delayed_job_table_name = "delayed_job"
+	db_url                 = flag.String("db.url", "host=127.0.0.1 dbname=tpt_models_test user=tpt password=extreme sslmode=disable", "the db url")
+	db_drv                 = flag.String("db.drv", "postgres", "the db driver")
+	db_type                = flag.Int("db_type", AUTO, "the db type, 0 is auto")
+	table_name             = flag.String("db_table", "sched_jobs", "the table name for jobs")
 
 	is_test_for_lock = false
 	test_ch_for_lock = make(chan int)
@@ -52,6 +53,10 @@ func DbType(drv string) int {
 	default:
 		return AUTO
 	}
+}
+
+func SetDelayedJobTable(table_name string) {
+	delayed_job_table_name = table_name
 }
 
 func SetTable(table_name string) {

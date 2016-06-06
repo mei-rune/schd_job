@@ -30,11 +30,10 @@ const (
 )
 
 var (
-	delayed_job_table_name = "delayed_job"
-	db_url                 = flag.String("db.url", "host=127.0.0.1 dbname=tpt_models_test user=tpt password=extreme sslmode=disable", "the db url")
-	db_drv                 = flag.String("db.drv", "postgres", "the db driver")
-	db_type                = flag.Int("db_type", AUTO, "the db type, 0 is auto")
-	table_name             = flag.String("db_table", "sched_jobs", "the table name for jobs")
+	db_url     = flag.String("db.url", "host=127.0.0.1 dbname=tpt_models_test user=tpt password=extreme sslmode=disable", "the db url")
+	db_drv     = flag.String("db.drv", "postgres", "the db driver")
+	db_type    = flag.Int("db.type", AUTO, "the db type, 0 is auto")
+	table_name = flag.String("db.table", "sched_jobs", "the table name for jobs")
 
 	is_test_for_lock = false
 	test_ch_for_lock = make(chan int)
@@ -55,17 +54,17 @@ func DbType(drv string) int {
 	}
 }
 
-func SetDelayedJobTable(table_name string) {
-	delayed_job_table_name = table_name
-}
-
 func SetTable(table_name string) {
-	flag.Set("db_table", table_name)
+	flag.Set("db.table", table_name)
 }
 
 func SetDbUrl(drv, url string) {
-	flag.Set("db_url", url)
-	flag.Set("db_drv", drv)
+	flag.Set("db.url", url)
+	flag.Set("db.drv", drv)
+}
+
+func I18n(dbType int, drv string, e error) error {
+	return i18n(dbType, drv, e)
 }
 
 func i18n(dbType int, drv string, e error) error {

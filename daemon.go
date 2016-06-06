@@ -27,7 +27,7 @@ var (
 	poll_interval = flag.Duration("poll_interval", 1*time.Minute, "the poll interval of db")
 	is_print      = flag.Bool("print", false, "print search paths while config is not found")
 	root_dir      = flag.String("root", ".", "the root directory")
-	config_file   = flag.String("config", "./<program_name>.conf", "the config file path")
+	config_file   = flag.String("schd-config", "./<program_name>.conf", "the config file path")
 	java_home     = flag.String("java_home", "", "the path of java, should auto search if it is empty")
 	log_path      = flag.String("log_path", "", "the path of log, should auto search if it is empty")
 )

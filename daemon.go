@@ -253,8 +253,10 @@ func Main() {
 	for _, dir := range job_directories {
 		e = watcher.Watch(dir)
 		if e != nil {
-			log.Println("[sys] watch directory '"+dir+"' failed", e)
-			return
+			if dirExists(dir) {
+				log.Println("[sys] watch directory '"+dir+"' failed", e)
+				return
+			}
 		}
 	}
 

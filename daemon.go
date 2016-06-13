@@ -458,7 +458,9 @@ func loadJobsFromDirectory(roots []string, arguments map[string]interface{}) ([]
 	for _, root := range roots {
 		matches, e := filepath.Glob(filepath.Join(root, "*.*"))
 		if nil != e {
-			return nil, errors.New("search '" + filepath.Join(root, "*.*") + "' failed, " + e.Error())
+			if !os.IsNotExist(e) {
+				return nil, errors.New("search '" + filepath.Join(root, "*.*") + "' failed, " + e.Error())
+			}
 		}
 
 		if nil == matches {

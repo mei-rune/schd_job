@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -198,8 +199,21 @@ func (self *ShellJob) rotate_file() error {
 func (self *ShellJob) Exec() {
 	out, e := os.OpenFile(self.logfile, os.O_APPEND|os.O_CREATE, 0)
 	if nil != e {
-		log.Println("["+self.name+"] open log file("+self.logfile+") failed,", e)
-		return
+		self.logfile = strings.Replace(self.logfile, "/", "_", -1)
+		self.logfile = strings.Replace(self.logfile, "\\", "_", -1)
+		self.logfile = strings.Replace(self.logfile, "*", "_", -1)
+		self.logfile = strings.Replace(self.logfile, ":", "_", -1)
+		self.logfile = strings.Replace(self.logfile, "\"", "_", -1)
+		self.logfile = strings.Replace(self.logfile, "|", "_", -1)
+		self.logfile = strings.Replace(self.logfile, "?", "_", -1)
+		self.logfile = strings.Replace(self.logfile, ">", "_", -1)
+		self.logfile = strings.Replace(self.logfile, "<", "_", -1)
+
+		out, e = os.OpenFile(self.logfile, os.O_APPEND|os.O_CREATE, 0)
+		if nil != e {
+			log.Println("["+self.name+"] open log file("+self.logfile+") failed,", e)
+			return
+		}
 	}
 	defer out.Close()
 	io.WriteString(out, "=============== begin ===============\r\n")

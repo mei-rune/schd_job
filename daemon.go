@@ -18,8 +18,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/howeyc/fsnotify"
 	"github.com/runner-mei/cron"
+	"gopkg.in/fsnotify.v1"
 )
 
 var (
@@ -198,9 +198,9 @@ func Main() {
 		}
 		for {
 			select {
-			case ev := <-watcher.Event:
+			case ev := <-watcher.Events:
 				log.Println("event:", ev)
-				if ev.IsCreate() {
+				if ev.Op&fsnotify.Create == fsnotify.Create {
 					nm := strings.ToLower(filepath.Base(ev.Name))
 					log.Println("[sys] new job -", nm)
 					job, e := loadJobFromFile(ev.Name, arguments)
@@ -216,12 +216,12 @@ func Main() {
 						break
 					}
 					Schedule(cr, job.name, sch, job)
-				} else if ev.IsDelete() {
+				} else if ev.Op&fsnotify.Remove == fsnotify.Remove {
 					nm := strings.ToLower(filepath.Base(ev.Name))
 					log.Println("[sys] delete job -", nm)
 					cr.Unschedule(nm)
 					delete(error_jobs, nm)
-				} else if ev.IsModify() {
+				} else if ev.Op&fsnotify.Write == fsnotify.Write || ev.Op&fsnotify.Rename == fsnotify.Rename {
 					nm := strings.ToLower(filepath.Base(ev.Name))
 					log.Println("[sys] reload job -", nm)
 					cr.Unschedule(nm)
@@ -240,7 +240,7 @@ func Main() {
 					}
 					Schedule(cr, job.name, sch, job)
 				}
-			case err := <-watcher.Error:
+			case err := <-watcher.Errors:
 				log.Println("error:", err)
 			case <-time.After(pollInterval):
 				if e := reloadJobsFromDB(cr, error_jobs, backend, arguments); nil != e {
@@ -251,7 +251,7 @@ func Main() {
 	}()
 
 	for _, dir := range job_directories {
-		e = watcher.Watch(dir)
+		e = watcher.Add(dir)
 		if e != nil {
 			if dirExists(dir) {
 				log.Println("[sys] watch directory '"+dir+"' failed", e)

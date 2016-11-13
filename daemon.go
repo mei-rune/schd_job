@@ -483,20 +483,24 @@ func loadJobsFromDirectory(roots []string, arguments map[string]interface{}) ([]
 }
 
 func ensureLogPath(root string, arguments map[string]interface{}) string {
-	logPath := filepath.Clean(abs(filepath.Join(root, "logs")))
-	logs := []string{stringWithDefault(arguments, "logPath", logPath),
-		filepath.Clean(abs(filepath.Join(root, "..", "logs"))),
-		logPath}
-
-	for _, s := range logs {
-		if dirExists(s) {
-			logPath = s
-			break
+	logPath := stringWithDefault(arguments, "logPath", "")
+	if "" == logPath {
+		if runtime.GOOS != "windows" {
+			logPath = "/var/log/tpt"
+		} else {
+			logs := []string{filepath.Clean(abs(filepath.Join(root, "..", "logs"))),
+				filepath.Clean(abs(filepath.Join(root, "logs")))}
+			for _, s := range logs {
+				if dirExists(s) {
+					logPath = s
+					break
+				}
+			}
 		}
 	}
 
 	if !dirExists(logPath) {
-		os.Mkdir(logPath, 0660)
+		os.Mkdir(logPath, 0666)
 	}
 	return logPath
 }

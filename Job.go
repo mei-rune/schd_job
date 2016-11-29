@@ -6,23 +6,29 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/kardianos/osext"
 )
 
 var (
-	RunMode    string
-	queues     = map[string]*queueLock{}
-	queue_lock sync.Mutex
+	RunMode          string
+	ExecutableFolder string
+	queues           = map[string]*queueLock{}
+	queue_lock       sync.Mutex
 
 	RunHook func(job Job) bool
 )
 
 func init() {
 	RunMode = os.Getenv("DAEMON_RUN_MODE")
+	ExecutableFolder, _ = osext.ExecutableFolder()
 }
 
 const maxNum = 5
@@ -196,8 +202,59 @@ func (self *ShellJob) rotate_file() error {
 	return nil
 }
 
+func lookPath(executableFolder, pa string, alias ...string) (string, bool) {
+	if filepath.IsAbs(pa) {
+		return pa, true
+	}
+
+	names := []string{pa, pa + ".sh"}
+	if runtime.GOOS == "windows" {
+		names = []string{pa, pa + ".bat", pa + ".com", pa + ".exe"}
+	}
+	for _, aliasName := range alias {
+		if runtime.GOOS == "windows" {
+			names = append(names, aliasName, aliasName+".bat", aliasName+".com", aliasName, aliasName+".exe")
+		} else {
+			names = append(names, aliasName, aliasName+".sh")
+		}
+	}
+
+	for _, nm := range names {
+		files := []string{nm,
+			filepath.Join("bin", nm),
+			filepath.Join("tools", nm),
+			filepath.Join("runtime_env", nm),
+			filepath.Join("..", nm),
+			filepath.Join("..", "bin", nm),
+			filepath.Join("..", "tools", nm),
+			filepath.Join("..", "runtime_env", nm),
+			filepath.Join(executableFolder, nm),
+			filepath.Join(executableFolder, "bin", nm),
+			filepath.Join(executableFolder, "tools", nm),
+			filepath.Join(executableFolder, "runtime_env", nm),
+			filepath.Join(executableFolder, "..", nm),
+			filepath.Join(executableFolder, "..", "bin", nm),
+			filepath.Join(executableFolder, "..", "tools", nm),
+			filepath.Join(executableFolder, "..", "runtime_env", nm)}
+		for _, file := range files {
+			file = abs(file)
+			if st, e := os.Stat(file); nil == e && nil != st && !st.IsDir() {
+				return file, true
+			}
+		}
+	}
+
+	for _, nm := range names {
+		_, err := exec.LookPath(nm)
+		if nil == err {
+			return nm, true
+		}
+	}
+	return "", false
+}
+
 func (self *ShellJob) Exec() {
-	out, e := os.OpenFile(self.logfile, os.O_APPEND|os.O_CREATE, 0)
+	out, e := os.OpenFile(self.logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if nil != e {
 		self.logfile = strings.Replace(self.logfile, "/", "_", -1)
 		self.logfile = strings.Replace(self.logfile, "\\", "_", -1)
@@ -209,7 +266,7 @@ func (self *ShellJob) Exec() {
 		self.logfile = strings.Replace(self.logfile, ">", "_", -1)
 		self.logfile = strings.Replace(self.logfile, "<", "_", -1)
 
-		out, e = os.OpenFile(self.logfile, os.O_APPEND|os.O_CREATE, 0)
+		out, e = os.OpenFile(self.logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 		if nil != e {
 			log.Println("["+self.name+"] open log file("+self.logfile+") failed,", e)
 			return
@@ -219,7 +276,11 @@ func (self *ShellJob) Exec() {
 	io.WriteString(out, "=============== begin ===============\r\n")
 	defer io.WriteString(out, "===============  end  ===============\r\n")
 
-	cmd := exec.Command(self.execute, self.arguments...)
+	executePath, found := lookPath(ExecutableFolder, self.execute)
+	if !found {
+		executePath = self.execute
+	}
+	cmd := exec.Command(executePath, self.arguments...)
 	cmd.Stderr = out
 	cmd.Stdout = out
 
@@ -241,6 +302,7 @@ func (self *ShellJob) Exec() {
 	cmd.Env = environments
 
 	io.WriteString(out, cmd.Path)
+
 	for idx, s := range cmd.Args {
 		if 0 == idx {
 			continue
@@ -249,7 +311,6 @@ func (self *ShellJob) Exec() {
 		io.WriteString(out, s)
 	}
 	io.WriteString(out, "\r\n===============  out  ===============\r\n")
-
 	if e = cmd.Start(); nil != e {
 		io.WriteString(out, "start failed, "+e.Error()+"\r\n")
 		return
@@ -279,8 +340,6 @@ func (self *ShellJob) Exec() {
 		}
 	case <-time.After(self.timeout):
 		killByPid(cmd.Process.Pid)
-		out.Seek(0, os.SEEK_END)
 		io.WriteString(out, "run timeout, kill it.\r\n")
-		log.Println("[" + self.name + "] run timeout, kill it.")
 	}
 }

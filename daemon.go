@@ -366,7 +366,12 @@ func search_java_home(root string) string {
 		return jp
 	}
 
-	ss, _ := filepath.Glob(filepath.Join(root, "**", "java.exe"))
+	jp = filepath.Join(root, "runtime_env/java/bin", java_execute)
+	if fileExists(jp) {
+		return jp
+	}
+
+	ss, _ := filepath.Glob(filepath.Join(root, "**", java_execute))
 	if nil != ss && 0 != len(ss) {
 		return ss[0]
 	}
@@ -399,6 +404,9 @@ func afterLoad(job *JobFromDB, arguments map[string]interface{}) error {
 	if "java" == strings.ToLower(job.execute) || "java.exe" == strings.ToLower(job.execute) {
 		job.execute = *java_home
 		is_java = true
+		// } else if "java15" == strings.ToLower(job.execute) || "java15.exe" == strings.ToLower(job.execute) {
+		// 	job.execute = *java15_home
+		// 	is_java = true
 	} else {
 		job.execute = executeTemplate(job.execute, arguments)
 		execute_tolow := strings.ToLower(job.execute)

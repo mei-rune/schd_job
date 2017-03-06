@@ -23,12 +23,15 @@ var (
 	queues           = map[string]*queueLock{}
 	queue_lock       sync.Mutex
 
+	commands = map[string]string{}
+
 	RunHook func(job Job) bool
 )
 
 func init() {
 	RunMode = os.Getenv("DAEMON_RUN_MODE")
 	ExecutableFolder, _ = osext.ExecutableFolder()
+	fillCommands(ExecutableFolder)
 }
 
 const maxNum = 5
@@ -253,6 +256,36 @@ func lookPath(executableFolder, pa string, alias ...string) (string, bool) {
 	return "", false
 }
 
+func fillCommands(executableFolder string) {
+	for _, nm := range []string{"snmpget", "snmpgetnext", "snmpdf", "snmpbulkget",
+		"snmpbulkwalk", "snmpdelta", "snmpnetstat", "snmpset", "snmpstatus",
+		"snmptable", "snmptest", "snmptools", "snmptranslate", "snmptrap", "snmpusm",
+		"snmpvacm", "snmpwalk", "wshell"} {
+		if pa, ok := lookPath(executableFolder, nm); ok {
+			commands[nm] = pa
+		} else if pa, ok := lookPath(executableFolder, "netsnmp/"+nm); ok {
+			commands[nm] = pa
+		}
+	}
+
+	if pa, ok := lookPath(executableFolder, "tpt"); ok {
+		commands["tpt"] = pa
+	}
+	if pa, ok := lookPath(executableFolder, "nmap/nping"); ok {
+		commands["nping"] = pa
+	}
+	if pa, ok := lookPath(executableFolder, "nmap/nmap"); ok {
+		commands["nmap"] = pa
+	}
+	if pa, ok := lookPath(executableFolder, "putty/plink", "ssh"); ok {
+		commands["plink"] = pa
+		commands["ssh"] = pa
+	}
+	if pa, ok := lookPath(executableFolder, "dig/dig", "dig"); ok {
+		commands["dig"] = pa
+	}
+}
+
 func (self *ShellJob) Exec() {
 	out, e := os.OpenFile(self.logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if nil != e {
@@ -276,7 +309,12 @@ func (self *ShellJob) Exec() {
 	io.WriteString(out, "=============== begin ===============\r\n")
 	defer io.WriteString(out, "===============  end  ===============\r\n")
 
-	executePath, found := lookPath(ExecutableFolder, self.execute)
+	execPath := self.execute
+	if s := commands[self.execute]; s != "" {
+		s = execPath
+	}
+
+	executePath, found := lookPath(ExecutableFolder, execPath)
 	if !found {
 		executePath = self.execute
 	}

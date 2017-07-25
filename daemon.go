@@ -513,12 +513,43 @@ func ensureLogPath(root string, arguments map[string]interface{}) string {
 	return logPath
 }
 
+var funcs = template.FuncMap{
+	"joinFilePath": filepath.Join,
+	"joinUrlPath": func(base string, paths ...string) string {
+		var buf bytes.Buffer
+		buf.WriteString(base)
+
+		lastSplash := strings.HasSuffix(base, "/")
+		for _, pa := range paths {
+			if 0 == len(pa) {
+				continue
+			}
+
+			if lastSplash {
+				if '/' == pa[0] {
+					buf.WriteString(pa[1:])
+				} else {
+					buf.WriteString(pa)
+				}
+			} else {
+				if '/' != pa[0] {
+					buf.WriteString("/")
+				}
+				buf.WriteString(pa)
+			}
+
+			lastSplash = strings.HasSuffix(pa, "/")
+		}
+		return buf.String()
+	},
+}
+
 func executeTemplate(s string, args map[string]interface{}) string {
 	if !strings.Contains(s, "{{") {
 		return s
 	}
 	var buffer bytes.Buffer
-	t, e := template.New("default").Parse(s)
+	t, e := template.New("default").Funcs(funcs).Parse(s)
 	if nil != e {
 		panic(errors.New("regenerate string failed, " + e.Error()))
 	}
@@ -530,7 +561,7 @@ func executeTemplate(s string, args map[string]interface{}) string {
 }
 
 func loadJobFromFile(file string, args map[string]interface{}) (*ShellJob, error) {
-	t, e := template.ParseFiles(file)
+	t, e := template.New("default").Funcs(funcs).ParseFiles(file)
 	if nil != e {
 		return nil, errors.New("read file failed, " + e.Error())
 	}
@@ -743,7 +774,7 @@ func loadDefault(root, file string) map[string]interface{} {
 }
 
 func loadProperties(root, file string) (map[string]interface{}, error) {
-	t, e := template.ParseFiles(file)
+	t, e := template.New("default").Funcs(funcs).ParseFiles(file)
 	if nil != e {
 		return nil, errors.New("read config failed, " + e.Error())
 	}

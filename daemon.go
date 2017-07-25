@@ -7,6 +7,7 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	_ "net/http/pprof"
@@ -561,7 +562,7 @@ func executeTemplate(s string, args map[string]interface{}) string {
 }
 
 func loadJobFromFile(file string, args map[string]interface{}) (*ShellJob, error) {
-	t, e := template.New("default").Funcs(funcs).ParseFiles(file)
+	t, e := loadTemplateFile(file)
 	if nil != e {
 		return nil, errors.New("read file failed, " + e.Error())
 	}
@@ -774,7 +775,7 @@ func loadDefault(root, file string) map[string]interface{} {
 }
 
 func loadProperties(root, file string) (map[string]interface{}, error) {
-	t, e := template.New("default").Funcs(funcs).ParseFiles(file)
+	t, e := loadTemplateFile(file)
 	if nil != e {
 		return nil, errors.New("read config failed, " + e.Error())
 	}
@@ -793,4 +794,12 @@ func loadProperties(root, file string) (map[string]interface{}, error) {
 	}
 
 	return arguments, nil
+}
+
+func loadTemplateFile(file string) (*template.Template, error) {
+	bs, e := ioutil.ReadFile(file)
+	if nil != e {
+		return nil, errors.New("read file failed, " + e.Error())
+	}
+	return template.New("default").Funcs(funcs).Parse(string(bs))
 }

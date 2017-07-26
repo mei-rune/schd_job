@@ -126,34 +126,37 @@ func Main() {
 	jobs_from_dir, e := loadJobsFromDirectory(job_directories, arguments)
 	if nil != e {
 		log.Println(e)
-		return
 	}
 	jobs_from_db, e := loadJobsFromDB(backend, arguments)
 	if nil != e {
 		log.Println(e)
-		return
 	}
 
 	error_jobs := map[string]error{}
 	cr := cron.New()
-	for _, job := range jobs_from_dir {
-		sch, e := Parse(job.expression)
-		if nil != e {
-			error_jobs[job.name] = e
-			log.Println("["+job.name+"] schedule failed,", e)
-			continue
+	if len(jobs_from_dir) > 0 {
+		for _, job := range jobs_from_dir {
+			sch, e := Parse(job.expression)
+			if nil != e {
+				error_jobs[job.name] = e
+				log.Println("["+job.name+"] schedule failed,", e)
+				continue
+			}
+			Schedule(cr, job.name, sch, job)
 		}
-		Schedule(cr, job.name, sch, job)
 	}
-	for _, job := range jobs_from_db {
-		sch, e := Parse(job.expression)
-		if nil != e {
-			e := errors.New("[" + job.name + "] schedule failed, " + e.Error())
-			error_jobs[fmt.Sprint(job.id)] = e
-			log.Println(e)
-			continue
+
+	if len(jobs_from_db) > 0 {
+		for _, job := range jobs_from_db {
+			sch, e := Parse(job.expression)
+			if nil != e {
+				e := errors.New("[" + job.name + "] schedule failed, " + e.Error())
+				error_jobs[fmt.Sprint(job.id)] = e
+				log.Println(e)
+				continue
+			}
+			Schedule(cr, fmt.Sprint(job.id), sch, job)
 		}
-		Schedule(cr, fmt.Sprint(job.id), sch, job)
 	}
 
 	log.Println("all job is loaded.")

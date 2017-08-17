@@ -770,9 +770,14 @@ func loadConfig(root string) (map[string]interface{}, error) {
 }
 
 func loadDefault(root, file string) map[string]interface{} {
+	os_ext := ".exe"
+	if runtime.GOOS != "windows" {
+		os_ext = ""
+	}
 	return map[string]interface{}{"root_dir": root,
 		"config_file": file,
 		"java":        *java_home,
+		"os_ext":      os_ext,
 		"os":          runtime.GOOS,
 		"arch":        runtime.GOARCH}
 }
@@ -794,6 +799,11 @@ func loadProperties(root, file string) (map[string]interface{}, error) {
 	e = json.Unmarshal(buffer.Bytes(), &arguments)
 	if nil != e {
 		return nil, errors.New("ummarshal config failed, " + e.Error())
+	}
+	for k, v := range args {
+		if _, ok := arguments[k]; !ok {
+			arguments[k] = v
+		}
 	}
 
 	return arguments, nil

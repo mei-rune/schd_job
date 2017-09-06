@@ -311,15 +311,15 @@ func reloadJobFromDB(cr *cron.Cron, error_jobs map[string]error, backend *dbBack
 	job, e := backend.find(id)
 	if nil != e {
 		if "" == name {
-			log.Println(message_prefix, "[", id, "]")
+			log.Println(message_prefix, "[", id, "]", e)
 		} else {
-			log.Println(message_prefix, name)
+			log.Println(message_prefix, name, e)
 		}
 		return
 	}
 	e = afterLoad(job, arguments)
 	if nil != e {
-		log.Println(message_prefix, job.name)
+		log.Println(message_prefix, job.name, e)
 		return
 	}
 

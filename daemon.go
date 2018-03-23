@@ -771,13 +771,16 @@ func loadConfig(root string) (map[string]interface{}, error) {
 
 func loadDefault(root, file string) map[string]interface{} {
 	os_ext := ".exe"
+	sh_ext := ".bat"
 	if runtime.GOOS != "windows" {
 		os_ext = ""
+		sh_ext = ".sh"
 	}
 	return map[string]interface{}{"root_dir": root,
 		"config_file": file,
 		"java":        *java_home,
 		"os_ext":      os_ext,
+		"sh_ext":      sh_ext,
 		"os":          runtime.GOOS,
 		"arch":        runtime.GOARCH}
 }

@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/runner-mei/cron"
-	"gopkg.in/fsnotify.v1"
+	fsnotify "gopkg.in/fsnotify/fsnotify.v1"
 )
 
 var (

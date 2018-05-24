@@ -3,7 +3,7 @@ go: 1.6
 install:
   - export PATH=$PATH:$HOME/gopath/bin
   - go get github.com/fd/go-shellwords/shellwords
-  - go get gopkg.in/fsnotify.v1
+  - go get gopkg.in/fsnotify/fsnotify.v1
   - go get github.com/runner-mei/cron
   - go get github.com/lib/pq
   - go get golang.org/x/text

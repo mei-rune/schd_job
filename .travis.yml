@@ -7,6 +7,8 @@ install:
   - go get github.com/runner-mei/cron
   - go get github.com/lib/pq
   - go get golang.org/x/text
+  - github.com/kardianos/osext
+  
 services:
   - postgres 
 

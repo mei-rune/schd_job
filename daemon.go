@@ -1,4 +1,4 @@
-package sched_job
+package schd_job
 
 import (
 	"bytes"
@@ -579,7 +579,7 @@ func loadJobFromFile(file string, args map[string]interface{}) (*ShellJob, error
 	}
 
 	var v interface{}
-	e = json.Unmarshal(buffer.Bytes(), &v)
+	e = Unmarshal(buffer.Bytes(), &v)
 
 	if nil != e {
 		log.Println(buffer.String())
@@ -799,7 +799,7 @@ func loadProperties(root, file string) (map[string]interface{}, error) {
 	}
 
 	var arguments map[string]interface{}
-	e = json.Unmarshal(buffer.Bytes(), &arguments)
+	e = Unmarshal(buffer.Bytes(), &arguments)
 	if nil != e {
 		return nil, errors.New("ummarshal config failed, " + e.Error())
 	}

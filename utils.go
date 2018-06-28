@@ -1,4 +1,4 @@
-package sched_job
+package schd_job
 
 import (
 	"fmt"

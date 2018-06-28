@@ -1,4 +1,4 @@
-package sched_job
+package schd_job
 
 /*
 type worker struct {

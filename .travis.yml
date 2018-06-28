@@ -8,6 +8,7 @@ install:
   - go get github.com/lib/pq
   - go get golang.org/x/text
   - go get github.com/kardianos/osext
+  - go get github.com/hjson/hjson-go
   
 services:
   - postgres 

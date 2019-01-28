@@ -30,7 +30,7 @@ const (
 )
 
 var (
-	db_url     = flag.String("db.url", "host=127.0.0.1 dbname=tpt_models_test user=tpt password=extreme sslmode=disable", "the db url")
+	db_url     = flag.String("db.url", "host=127.0.0.1 dbname=schd_test user=schdtest password=123456 sslmode=disable", "the db url")
 	db_drv     = flag.String("db.drv", "postgres", "the db driver")
 	db_type    = flag.Int("db.type", AUTO, "the db type, 0 is auto")
 	table_name = flag.String("db.table", "sched_jobs", "the table name for jobs")

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	_ "net/http/pprof"
 	"os"
 	"path/filepath"
@@ -24,7 +23,6 @@ import (
 )
 
 var (
-	listenAddress = flag.String("listen", ":37075", "the address of http")
 	poll_interval = flag.Duration("poll_interval", 1*time.Minute, "the poll interval of db")
 	is_print      = flag.Bool("print", false, "print search paths while config is not found")
 	root_dir      = flag.String("root", ".", "the root directory")
@@ -69,13 +67,7 @@ func Schedule(c *cron.Cron, id string, schedule cron.Schedule, cmd cron.Job) {
 	c.Schedule(id, schedule, cmd)
 }
 
-func Main() {
-	flag.Parse()
-	if nil != flag.Args() && 0 != len(flag.Args()) {
-		flag.Usage()
-		return
-	}
-
+func New() (*cron.Cron, error) {
 	if "." == *root_dir {
 		*root_dir = abs(filepath.Dir(os.Args[0]))
 		dirs := []string{abs(filepath.Dir(os.Args[0])), filepath.Join(abs(filepath.Dir(os.Args[0])), "..")}
@@ -90,8 +82,7 @@ func Main() {
 	}
 
 	if !dirExists(*root_dir) {
-		log.Println("root directory '" + *root_dir + "' is not exist.")
-		return
+		return nil, errors.New("root directory '" + *root_dir + "' is not exist")
 	} else {
 		log.Println("root directory is '" + *root_dir + "'.")
 	}
@@ -108,8 +99,7 @@ func Main() {
 
 	arguments, e := loadConfig(*root_dir)
 	if nil != e {
-		log.Println(e)
-		return
+		return nil, e
 	}
 	flag.Set("log_path", ensureLogPath(*root_dir, arguments))
 
@@ -117,8 +107,7 @@ func Main() {
 	if nil != e {
 		fmt.Println("db_drv is", *db_drv)
 		fmt.Println("db_url is", *db_url)
-		log.Println(e)
-		return
+		return nil, e
 	}
 
 	job_directories := []string{filepath.Join(*root_dir, "lib", "jobs"),
@@ -187,12 +176,11 @@ func Main() {
 	}))
 
 	cr.Start()
-	defer cr.Stop()
 
 	watcher, e := fsnotify.NewWatcher()
 	if e != nil {
-		log.Println("[error] new fs watcher failed", e)
-		return
+		cr.Stop()
+		return nil, errors.New("new fs watcher failed, " + e.Error())
 	}
 	// Process events
 	go func() {
@@ -258,17 +246,12 @@ func Main() {
 		e = watcher.Add(dir)
 		if e != nil {
 			if dirExists(dir) {
-				log.Println("[sys] watch directory '"+dir+"' failed", e)
-				return
+				cr.Stop()
+				return nil, errors.New("watch directory '" + dir + "' failed, " + e.Error())
 			}
 		}
 	}
-
-	log.Println("[schd-jobs] serving at '" + *listenAddress + "'")
-	e = http.ListenAndServe(*listenAddress, nil)
-	if e != nil {
-		log.Fatal(e)
-	}
+	return cr, nil
 }
 
 func reloadJobsFromDB(cr *cron.Cron, error_jobs map[string]error, backend *dbBackend, arguments map[string]interface{}) error {

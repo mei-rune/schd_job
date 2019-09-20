@@ -314,7 +314,7 @@ func (self *ShellJob) Exec() {
 		s = execPath
 	}
 
-	executePath, found := lookPath(ExecutableFolder, execPath)
+	executePath, found := LookPath(ExecutableFolder, execPath)
 	if !found {
 		executePath = self.execute
 	}

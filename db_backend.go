@@ -9,10 +9,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+
 	//_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
+
 	//_ "github.com/runner-mei/go-oci8"
 	//_ "github.com/ziutek/mymysql/godrv"
 	"strconv"

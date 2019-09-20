@@ -148,6 +148,12 @@ func New() (*cron.Cron, error) {
 		}
 	}
 
+	for name, loader := range loaders {
+		if err := loader.Load(cr, arguments); err != nil {
+			log.Println("load '"+name+"' fail,", err)
+		}
+	}
+
 	log.Println("all job is loaded.")
 
 	expvar.Publish("jobs", expvar.Func(func() interface{} {
@@ -165,6 +171,10 @@ func New() (*cron.Cron, error) {
 			} else {
 				ret[ent.Id] = map[string]interface{}{"next": ent.Next, "prev": ent.Prev}
 			}
+		}
+
+		for name, loader := range loaders {
+			ret["loader-"+name] = loader.Info()
 		}
 
 		bs, e := json.MarshalIndent(ret, "", "  ")
@@ -237,6 +247,12 @@ func New() (*cron.Cron, error) {
 			case <-time.After(pollInterval):
 				if e := reloadJobsFromDB(cr, error_jobs, backend, arguments); nil != e {
 					log.Println(e)
+				}
+
+				for name, loader := range loaders {
+					if err := loader.Load(cr, arguments); err != nil {
+						log.Println("reload '"+name+"' fail,", err)
+					}
 				}
 			}
 		}

@@ -23,7 +23,7 @@ var (
 	queues           = map[string]*queueLock{}
 	queue_lock       sync.Mutex
 
-	commands = map[string]string{}
+	Commands = map[string]string{}
 
 	RunHook func(job Job) bool
 )
@@ -205,7 +205,7 @@ func (self *ShellJob) rotate_file() error {
 	return nil
 }
 
-func lookPath(executableFolder, pa string, alias ...string) (string, bool) {
+func LookPath(executableFolder, pa string, alias ...string) (string, bool) {
 	if filepath.IsAbs(pa) {
 		return pa, true
 	}
@@ -261,28 +261,28 @@ func fillCommands(executableFolder string) {
 		"snmpbulkwalk", "snmpdelta", "snmpnetstat", "snmpset", "snmpstatus",
 		"snmptable", "snmptest", "snmptools", "snmptranslate", "snmptrap", "snmpusm",
 		"snmpvacm", "snmpwalk", "wshell"} {
-		if pa, ok := lookPath(executableFolder, nm); ok {
-			commands[nm] = pa
-		} else if pa, ok := lookPath(executableFolder, "netsnmp/"+nm); ok {
-			commands[nm] = pa
+		if pa, ok := LookPath(executableFolder, nm); ok {
+			Commands[nm] = pa
+		} else if pa, ok := LookPath(executableFolder, "netsnmp/"+nm); ok {
+			Commands[nm] = pa
 		}
 	}
 
-	if pa, ok := lookPath(executableFolder, "tpt"); ok {
-		commands["tpt"] = pa
+	if pa, ok := LookPath(executableFolder, "tpt"); ok {
+		Commands["tpt"] = pa
 	}
-	if pa, ok := lookPath(executableFolder, "nmap/nping"); ok {
-		commands["nping"] = pa
+	if pa, ok := LookPath(executableFolder, "nmap/nping"); ok {
+		Commands["nping"] = pa
 	}
-	if pa, ok := lookPath(executableFolder, "nmap/nmap"); ok {
-		commands["nmap"] = pa
+	if pa, ok := LookPath(executableFolder, "nmap/nmap"); ok {
+		Commands["nmap"] = pa
 	}
-	if pa, ok := lookPath(executableFolder, "putty/plink", "ssh"); ok {
-		commands["plink"] = pa
-		commands["ssh"] = pa
+	if pa, ok := LookPath(executableFolder, "putty/plink", "ssh"); ok {
+		Commands["plink"] = pa
+		Commands["ssh"] = pa
 	}
-	if pa, ok := lookPath(executableFolder, "dig/dig", "dig"); ok {
-		commands["dig"] = pa
+	if pa, ok := LookPath(executableFolder, "dig/dig", "dig"); ok {
+		Commands["dig"] = pa
 	}
 }
 
@@ -310,7 +310,7 @@ func (self *ShellJob) Exec() {
 	defer io.WriteString(out, "===============  end  ===============\r\n")
 
 	execPath := self.execute
-	if s := commands[self.execute]; s != "" {
+	if s := Commands[self.execute]; s != "" {
 		s = execPath
 	}
 

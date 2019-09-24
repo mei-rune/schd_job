@@ -68,6 +68,10 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 		return errors.New(loader.lastErr)
 	}
 
+	if versions == nil {
+		versions = map[int64]time.Time{}
+	}
+
 	for _, ent := range cr.Entries() {
 		id, oldVersion, ok := loader.GetVersion(ent.Job)
 		if !ok {

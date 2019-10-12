@@ -80,6 +80,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 
 		if newVersion, ok := versions[id]; ok {
 			if newVersion.Equal(oldVersion) {
+				delete(versions, id)
 				continue
 			}
 
@@ -123,7 +124,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 		idStr := loader.GenerateID(id)
 		Schedule(cr, idStr, sch, job)
 
-		log.Println("[" + loader.Name + "]] load '" + strconv.FormatInt(id, 10) + "' successful")
+		log.Println("[" + loader.Name + "]] load '" + idStr + "' successful")
 	}
 
 	return nil

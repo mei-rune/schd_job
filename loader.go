@@ -95,11 +95,14 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 				continue
 			}
 			idStr := loader.GenerateID(id)
+			cr.Unschedule(ent.Id)
 			Schedule(cr, idStr, sch, job)
 			delete(versions, id)
 			if loader.fails != nil {
 				delete(loader.fails, id)
 			}
+
+			log.Println("[" + loader.Name + "] reload '" + strconv.FormatInt(id, 10) + "' ok")
 		} else {
 			log.Println("["+loader.Name+"] delete job -", id)
 

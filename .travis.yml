@@ -13,6 +13,9 @@ install:
 services:
   - postgres 
 
+addons:
+  postgresql: "9.6"
+
 before_script:
   - psql -c "CREATE USER schdtest WITH PASSWORD '123456';" -U postgres
   - psql -c "create database schd_test with OWNER = schdtest;" -U postgres

@@ -127,7 +127,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 		idStr := loader.GenerateID(id)
 		Schedule(cr, idStr, sch, job)
 
-		log.Println("[" + loader.Name + "]] load '" + idStr + "' successful")
+		log.Println("["+loader.Name+"]] load '"+idStr+"' successful and next time is", sch.Next(time.Now()))
 	}
 
 	return nil

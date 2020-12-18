@@ -22,6 +22,8 @@ import (
 	fsnotify "gopkg.in/fsnotify/fsnotify.v1"
 )
 
+const jobFileExt = ".job.json"
+
 var (
 	poll_interval = flag.Duration("poll_interval", 1*time.Minute, "the poll interval of db")
 	is_print      = flag.Bool("print", false, "print search paths while config is not found")
@@ -204,6 +206,10 @@ func New() (*cron.Cron, error) {
 				log.Println("event:", ev)
 				if ev.Op&fsnotify.Create == fsnotify.Create {
 					nm := strings.ToLower(filepath.Base(ev.Name))
+					if !strings.HasSuffix(strings.ToLower(nm), jobFileExt) {
+						log.Println("[sys] skip disabled job -", nm)
+						break
+					}
 					log.Println("[sys] new job -", nm)
 					job, e := loadJobFromFile(ev.Name, arguments)
 					if nil != e {
@@ -225,9 +231,15 @@ func New() (*cron.Cron, error) {
 					delete(error_jobs, nm)
 				} else if ev.Op&fsnotify.Write == fsnotify.Write || ev.Op&fsnotify.Rename == fsnotify.Rename {
 					nm := strings.ToLower(filepath.Base(ev.Name))
-					log.Println("[sys] reload job -", nm)
 					cr.Unschedule(nm)
 					delete(error_jobs, nm)
+
+					log.Println("[sys] reload job -", nm)
+					if !strings.HasSuffix(nm, jobFileExt) {
+						log.Println("[sys] disabled job -", nm)
+						break
+					}
+
 					job, e := loadJobFromFile(ev.Name, arguments)
 					if nil != e {
 						error_jobs[nm] = e
@@ -481,6 +493,11 @@ func loadJobsFromDirectory(roots []string, arguments map[string]interface{}) ([]
 		}
 
 		for _, nm := range matches {
+			if !strings.HasSuffix(strings.ToLower(nm), jobFileExt) {
+				log.Println("[sys] skip disabled job -", nm)
+				continue
+			}
+
 			job, e := loadJobFromFile(nm, arguments)
 			if nil != e {
 				return nil, errors.New("load '" + nm + "' failed, " + e.Error())

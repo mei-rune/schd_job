@@ -274,16 +274,11 @@ func scanJob(dbType int, drv string, scan rowScanner, opts map[string]interface{
 
 	if Onload != nil {
 		job, err := Onload(id,
-			name,
-			mode,
-			enabled,
-			queue,
-			expression,
+			jobopts.Name,
 			execute,
 			directory,
 			arguments,
 			environments,
-			killAfterInterval,
 			createdAt.Time,
 			updatedAt.Time)
 		if job != nil && err == nil {
@@ -327,14 +322,9 @@ func errWrap(err error, msg string) error {
 
 var Onload func(id int64,
 	name string,
-	mode sql.NullString,
-	enabled sql.NullBool,
-	queue sql.NullString,
-	expression string,
 	execute string,
 	directory sql.NullString,
 	arguments sql.NullString,
 	environments sql.NullString,
-	killAfterInterval sql.NullInt64,
 	createdAt time.Time,
 	updatedAt time.Time) (Job, error)

@@ -6,6 +6,7 @@ import (
 	"log"
 	"runtime"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 )
 
 type JobOption struct {
+	Loader     string
 	ID         int64
 	UUID       string
 	Name       string
@@ -48,31 +50,29 @@ type SimpleLoader interface {
 }
 
 func RegisterLoader(name string, loader SimpleLoader) {
+	if _, ok := loaders[name]; ok {
+		panic(errors.New("loader '" + name + "' is already exists"))
+	}
 	loaders[name] = &DefaultLoader{
 		Name:      name,
 		Snapshots: loader.Snapshots,
 		Read:      loader.Load,
-		GenerateID: func(id int64) string {
-			return name + "-" + strconv.FormatInt(id, 10)
-		},
 	}
 }
 
 type DefaultLoader struct {
 	Name      string
 	Snapshots func() (map[int64]time.Time, error)
-	// GetVersion func(cron.Job) (int64, time.Time, bool)
-	Read       func(id int64, arguments map[string]interface{}) (JobOption, TimeSchedule, Job, error)
-	GenerateID func(id int64) string
-	fails      map[int64]string
-	lastErr    string
+	Read      func(id int64, arguments map[string]interface{}) (JobOption, TimeSchedule, Job, error)
+	fails     map[int64]string
+	lastErr   string
 }
 
 func (loader *DefaultLoader) Info() interface{} {
 	result := map[string]interface{}{}
 	if loader.fails != nil {
 		for id, err := range loader.fails {
-			result[loader.GenerateID(id)] = err
+			result[GenerateJobID(loader.Name, id)] = err
 		}
 	}
 
@@ -81,6 +81,22 @@ func (loader *DefaultLoader) Info() interface{} {
 	}
 
 	return result
+}
+
+func GenerateJobID(loader string, id int64) string {
+	return loader + "-$$-" + strconv.FormatInt(id, 10)
+}
+
+func HasLoaderName(uuid, loader string) bool {
+	return strings.HasPrefix(uuid, loader+"-$$-")
+}
+
+func ReadJobID(id string) (string, string) {
+	ss := strings.SplitN(id, "-$$-", 2)
+	if len(ss) == 2 {
+		return ss[0], ss[1]
+	}
+	return id, ""
 }
 
 func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{}) error {
@@ -97,6 +113,9 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 	}
 
 	for _, ent := range cr.Entries() {
+		if !HasLoaderName(ent.Id, loader.Name) {
+			continue
+		}
 		id, oldVersion, ok := GetVersion(ent.Job)
 		if !ok {
 			continue
@@ -121,7 +140,8 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 			if opts.ID == 0 {
 				opts.ID = id
 			}
-			opts.UUID = loader.GenerateID(id)
+			opts.Loader = loader.Name
+			opts.UUID = GenerateJobID(loader.Name, id)
 			cr.Unschedule(ent.Id)
 			Schedule(cr, opts.UUID, sch, jobWarp(job, opts))
 			delete(versions, id)
@@ -132,8 +152,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 			log.Println("[" + loader.Name + "] reload '" + strconv.FormatInt(id, 10) + "' ok")
 		} else {
 			log.Println("["+loader.Name+"] delete job -", id)
-
-			cr.Unschedule(loader.GenerateID(id))
+			cr.Unschedule(ent.Id)
 
 			if loader.fails != nil {
 				delete(loader.fails, id)
@@ -144,7 +163,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 	for id := range versions {
 		opts, sch, job, err := loader.Read(id, arguments)
 		if err != nil {
-			log.Println("["+loader.Name+"]] load '"+strconv.FormatInt(id, 10)+"' fail,", err)
+			log.Println("["+loader.Name+"] load '"+strconv.FormatInt(id, 10)+"' fail,", err)
 			if loader.fails == nil {
 				loader.fails = map[int64]string{}
 			}
@@ -154,10 +173,11 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 		if opts.ID == 0 {
 			opts.ID = id
 		}
-		opts.UUID = loader.GenerateID(id)
+		opts.Loader = loader.Name
+		opts.UUID = GenerateJobID(loader.Name, id)
 		Schedule(cr, opts.UUID, sch, jobWarp(job, opts))
 
-		log.Println("["+loader.Name+"]] load '"+opts.UUID+"' successful and next time is", sch.Next(time.Now()))
+		log.Println("["+loader.Name+"] load '"+opts.UUID+"' successful and next time is", sch.Next(time.Now()))
 	}
 
 	return nil

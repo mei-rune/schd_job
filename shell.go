@@ -1,6 +1,7 @@
 package schd_job
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/kardianos/osext"
+	"github.com/runner-mei/cron"
 )
 
 var (
@@ -25,8 +27,14 @@ var (
 
 	Commands = map[string]string{}
 
-	RunHook func(job Job) bool
+	// RunHook func(job Job) bool
 )
+
+// type Job interface {
+// 	Exec(context.Context)
+
+// 	ToMap() map[string]interface{}
+// }
 
 func init() {
 	RunMode = os.Getenv("DAEMON_RUN_MODE")
@@ -66,44 +74,52 @@ func GetQueueLock(name string) *queueLock {
 	return q
 }
 
-type Job interface {
-	Exec()
-
-	ToMap() map[string]interface{}
-}
-
 type ShellJob struct {
 	id           int64
-	name         string
-	mode         string
+	opts         JobOption
 	enabled      bool
-	queue        string
 	execute      string
 	directory    string
 	environments []string
 	arguments    []string
 	logfile      string
-	timeout      time.Duration
-	expression   string
 	status       int32
 
 	attributes map[string]interface{}
+
+	instance interface {
+		GetVersioner
+		Job
+	}
 }
 
 type JobFromDB struct {
 	ShellJob
-	updated_at time.Time
-	created_at time.Time
+}
+
+var _ GetVersioner = &JobFromDB{}
+
+func (w *JobFromDB) GetVersion() (int64, time.Time, bool) {
+	return w.opts.ID, w.opts.UpdatedAt, true
+}
+
+func (w *JobFromDB) Run(ctx context.Context) {
+	w.run(ctx)
+}
+
+func (w *JobFromDB) ToJob() cron.Job {
+	w.ShellJob.instance = w
+	return &w.ShellJob
 }
 
 func (self *ShellJob) isMode(mode string) bool {
 	if "" == mode || "all" == mode {
 		return true
 	}
-	if "" == self.mode || "default" == self.mode {
+	if "" == self.opts.Mode || "default" == self.opts.Mode {
 		return true
 	}
-	if self.mode == mode {
+	if self.opts.Mode == mode {
 		return true
 	}
 	return false
@@ -116,52 +132,56 @@ func (self *ShellJob) ToMap() map[string]interface{} {
 		"attributes": self.attributes,
 		"environments": append(self.environments,
 			"schd_job_id="+strconv.FormatInt(int64(self.id), 10),
-			"schd_job_name="+self.name)}
+			"schd_job_name="+self.opts.Name)}
 }
 
 func (self *ShellJob) Run() {
+	self.run(context.Background())
+}
+
+func (self *ShellJob) run(ctx context.Context) {
 	if !atomic.CompareAndSwapInt32(&self.status, 0, 1) {
-		log.Println("[" + self.name + "] running!")
+		log.Println("[" + self.opts.Name + "] running!")
 		return
 	}
 	defer atomic.StoreInt32(&self.status, 0)
 
 	if !self.enabled {
-		log.Println("[" + self.name + "] is disabled.")
+		log.Println("[" + self.opts.Name + "] is disabled.")
 		return
 	}
 
 	if !self.isMode(RunMode) {
-		log.Println("[" + self.name + "] should run on '" + self.mode + "', but current mode is '" + RunMode + "'.")
+		log.Println("[" + self.opts.Name + "] should run on '" + self.opts.Mode + "', but current mode is '" + RunMode + "'.")
 		return
 	}
 
-	if "" != self.queue {
-		q := GetQueueLock(self.queue)
-		log.Println("["+self.name+"] try entry queue", self.queue, ".")
+	if "" != self.opts.Queue {
+		q := GetQueueLock(self.opts.Queue)
+		log.Println("["+self.opts.Name+"] try entry queue", self.opts.Queue, ".")
 		q.Lock()
 		defer func() {
 			q.Unlock()
-			log.Println("["+self.name+"] exit queue", self.queue, ".")
+			log.Println("["+self.opts.Name+"] exit queue", self.opts.Queue, ".")
 		}()
 		q.lastAt = time.Now()
-		log.Println("["+self.name+"] already entry queue", self.queue, ".")
+		log.Println("["+self.opts.Name+"] already entry queue", self.opts.Queue, ".")
 	}
 
-	if nil != RunHook && RunHook(self) {
-		log.Println("[" + self.name + "] run it with hook.")
-		return
-	}
+	// if nil != RunHook && RunHook(self) {
+	// 	log.Println("[" + self.opts.Name + "] run it with hook.")
+	// 	return
+	// }
 
-	e := self.rotate_file()
+	e := self.rotateLogfile()
 	if nil != e {
-		log.Println("["+self.name+"] rotate log file failed,", e)
+		log.Println("["+self.opts.Name+"] rotate log file failed,", e)
 	}
 
-	self.Exec()
+	self.Exec(ctx)
 }
 
-func (self *ShellJob) rotate_file() error {
+func (self *ShellJob) rotateLogfile() error {
 	st, err := os.Stat(self.logfile)
 	if nil != err { // file exists
 		if os.IsNotExist(err) {
@@ -286,7 +306,7 @@ func fillCommands(executableFolder string) {
 	}
 }
 
-func (self *ShellJob) Exec() {
+func (self *ShellJob) Exec(ctx context.Context) {
 	out, e := os.OpenFile(self.logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if nil != e {
 		self.logfile = strings.Replace(self.logfile, "/", "_", -1)
@@ -301,7 +321,7 @@ func (self *ShellJob) Exec() {
 
 		out, e = os.OpenFile(self.logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 		if nil != e {
-			log.Println("["+self.name+"] open log file("+self.logfile+") failed,", e)
+			log.Println("["+self.opts.Name+"] open log file("+self.logfile+") failed,", e)
 			return
 		}
 	}
@@ -318,25 +338,35 @@ func (self *ShellJob) Exec() {
 	if !found {
 		executePath = self.execute
 	}
-	cmd := exec.Command(executePath, self.arguments...)
+
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if self.opts.Timeout > 0 {
+		var cancel func()
+		ctx, cancel = context.WithTimeout(ctx, self.opts.Timeout)
+		defer cancel()
+	}
+
+	cmd := exec.CommandContext(ctx, executePath, self.arguments...)
 	cmd.Stderr = out
 	cmd.Stdout = out
 
 	var environments []string
 	if nil != self.environments && 0 != len(self.environments) {
-		os_env := os.Environ()
-		environments = make([]string, 0, len(self.arguments)+len(os_env)+3)
-		environments = append(environments, os_env...)
+		osEnv := os.Environ()
+		environments = make([]string, 0, len(self.arguments)+len(osEnv)+3)
+		environments = append(environments, osEnv...)
 		environments = append(environments, self.environments...)
 	} else {
-		os_env := os.Environ()
-		environments = make([]string, 0, len(os_env)+3)
-		environments = append(environments, os_env...)
+		osEnv := os.Environ()
+		environments = make([]string, 0, len(osEnv)+3)
+		environments = append(environments, osEnv...)
 		environments = append(environments, self.environments...)
 	}
 
-	environments = append(environments, "schd_job_id="+fmt.Sprint(self.id))
-	environments = append(environments, "schd_job_name="+self.name)
+	environments = append(environments, "schd_job_id="+fmt.Sprint(self.opts.ID))
+	environments = append(environments, "schd_job_name="+self.opts.Name)
 	cmd.Env = environments
 
 	io.WriteString(out, cmd.Path)
@@ -354,7 +384,7 @@ func (self *ShellJob) Exec() {
 		return
 	}
 
-	if self.timeout <= 0 {
+	if self.opts.Timeout <= 0 {
 		if e = cmd.Wait(); nil != e {
 			io.WriteString(out, "run failed, "+e.Error()+"\r\n")
 		} else if nil != cmd.ProcessState {
@@ -376,7 +406,7 @@ func (self *ShellJob) Exec() {
 		} else if nil != cmd.ProcessState {
 			io.WriteString(out, "run ok, exit with "+cmd.ProcessState.String()+".\r\n")
 		}
-	case <-time.After(self.timeout):
+	case <-time.After(self.opts.Timeout):
 		killByPid(cmd.Process.Pid)
 		io.WriteString(out, "run timeout, kill it.\r\n")
 	}

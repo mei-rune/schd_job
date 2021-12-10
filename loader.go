@@ -1,13 +1,39 @@
 package schd_job
 
 import (
+	"context"
 	"errors"
 	"log"
+	"runtime"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/runner-mei/cron"
 )
+
+type JobOption struct {
+	ID         int64
+	UUID       string
+	Name       string
+	Mode       string
+	Queue      string
+	Timeout    time.Duration
+	Expression string
+
+	UpdatedAt time.Time
+	CreatedAt time.Time
+}
+
+type TimeSchedule = cron.Schedule
+
+type Job interface {
+	Run(context.Context)
+}
+
+type GetVersioner interface {
+	GetVersion() (int64, time.Time, bool)
+}
 
 type Loader interface {
 	Info() interface{}
@@ -18,16 +44,14 @@ var loaders = map[string]Loader{}
 
 type SimpleLoader interface {
 	Snapshots() (map[int64]time.Time, error)
-	GetVersion(cron.Job) (int64, time.Time, bool)
-	Load(id int64, arguments map[string]interface{}) (cron.Schedule, cron.Job, error)
+	Load(id int64, arguments map[string]interface{}) (JobOption, TimeSchedule, Job, error)
 }
 
 func RegisterLoader(name string, loader SimpleLoader) {
 	loaders[name] = &DefaultLoader{
-		Name:       name,
-		Snapshots:  loader.Snapshots,
-		GetVersion: loader.GetVersion,
-		Read:       loader.Load,
+		Name:      name,
+		Snapshots: loader.Snapshots,
+		Read:      loader.Load,
 		GenerateID: func(id int64) string {
 			return name + "-" + strconv.FormatInt(id, 10)
 		},
@@ -35,10 +59,10 @@ func RegisterLoader(name string, loader SimpleLoader) {
 }
 
 type DefaultLoader struct {
-	Name       string
-	Snapshots  func() (map[int64]time.Time, error)
-	GetVersion func(cron.Job) (int64, time.Time, bool)
-	Read       func(id int64, arguments map[string]interface{}) (cron.Schedule, cron.Job, error)
+	Name      string
+	Snapshots func() (map[int64]time.Time, error)
+	// GetVersion func(cron.Job) (int64, time.Time, bool)
+	Read       func(id int64, arguments map[string]interface{}) (JobOption, TimeSchedule, Job, error)
 	GenerateID func(id int64) string
 	fails      map[int64]string
 	lastErr    string
@@ -73,7 +97,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 	}
 
 	for _, ent := range cr.Entries() {
-		id, oldVersion, ok := loader.GetVersion(ent.Job)
+		id, oldVersion, ok := GetVersion(ent.Job)
 		if !ok {
 			continue
 		}
@@ -84,7 +108,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 				continue
 			}
 
-			sch, job, err := loader.Read(id, arguments)
+			opts, sch, job, err := loader.Read(id, arguments)
 			if err != nil {
 				log.Println("["+loader.Name+"] reload '"+strconv.FormatInt(id, 10)+"' fail,", err)
 
@@ -94,9 +118,12 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 				loader.fails[id] = err.Error()
 				continue
 			}
-			idStr := loader.GenerateID(id)
+			if opts.ID == 0 {
+				opts.ID = id
+			}
+			opts.UUID = loader.GenerateID(id)
 			cr.Unschedule(ent.Id)
-			Schedule(cr, idStr, sch, job)
+			Schedule(cr, opts.UUID, sch, jobWarp(job, opts))
 			delete(versions, id)
 			if loader.fails != nil {
 				delete(loader.fails, id)
@@ -115,7 +142,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 	}
 
 	for id := range versions {
-		sch, job, err := loader.Read(id, arguments)
+		opts, sch, job, err := loader.Read(id, arguments)
 		if err != nil {
 			log.Println("["+loader.Name+"]] load '"+strconv.FormatInt(id, 10)+"' fail,", err)
 			if loader.fails == nil {
@@ -124,11 +151,115 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 			loader.fails[id] = err.Error()
 			continue
 		}
-		idStr := loader.GenerateID(id)
-		Schedule(cr, idStr, sch, job)
+		if opts.ID == 0 {
+			opts.ID = id
+		}
+		opts.UUID = loader.GenerateID(id)
+		Schedule(cr, opts.UUID, sch, jobWarp(job, opts))
 
-		log.Println("["+loader.Name+"]] load '"+idStr+"' successful and next time is", sch.Next(time.Now()))
+		log.Println("["+loader.Name+"]] load '"+opts.UUID+"' successful and next time is", sch.Next(time.Now()))
 	}
 
 	return nil
+}
+
+func GetVersion(job cron.Job) (int64, time.Time, bool) {
+	switch w := job.(type) {
+	case *ShellJob:
+		if w.instance != nil {
+			return w.instance.GetVersion()
+		}
+		return 0, time.Time{}, false
+	case GetVersioner:
+		return w.GetVersion()
+	default:
+		return 0, time.Time{}, false
+	}
+}
+
+func jobWarp(job Job, opts JobOption) cron.Job {
+	// _, ok := job.(*warpJob)
+	// if ok {
+	// 	return job
+	// }
+	dbJob, ok := job.(*JobFromDB)
+	if ok {
+		return dbJob.ToJob()
+	}
+	// _, ok = job.(*ShellJob)
+	// if ok {
+	// 	return job
+	// }
+
+	return &warpJob{
+		opts: opts,
+		job:  job,
+	}
+}
+
+var _ GetVersioner = &warpJob{}
+
+type warpJob struct {
+	opts   JobOption
+	job    Job
+	status int32
+}
+
+func (w *warpJob) GetVersion() (int64, time.Time, bool) {
+	return w.opts.ID, w.opts.UpdatedAt, true
+}
+
+func (self *warpJob) isMode(mode string) bool {
+	if "" == mode || "all" == mode {
+		return true
+	}
+	if "" == self.opts.Mode || "default" == self.opts.Mode {
+		return true
+	}
+	if self.opts.Mode == mode {
+		return true
+	}
+	return false
+}
+
+func (self *warpJob) Run() {
+	if !atomic.CompareAndSwapInt32(&self.status, 0, 1) {
+		log.Println("[" + self.opts.UUID + ":" + self.opts.Name + "] running!")
+		return
+	}
+
+	defer func() {
+		atomic.StoreInt32(&self.status, 0)
+		if r := recover(); r != nil {
+			const size = 64 << 10
+			buf := make([]byte, size)
+			buf = buf[:runtime.Stack(buf, false)]
+			log.Println("["+self.opts.UUID+":"+self.opts.Name+"]: panic running job: %v\n%s", r, buf)
+		}
+	}()
+
+	if !self.isMode(RunMode) {
+		log.Println("[" + self.opts.UUID + ":" + self.opts.Name + "] should run on '" + self.opts.Mode + "', but current mode is '" + RunMode + "'.")
+		return
+	}
+
+	if "" != self.opts.Queue {
+		q := GetQueueLock(self.opts.Queue)
+		log.Println("["+self.opts.UUID+":"+self.opts.Name+"] try entry queue", self.opts.Queue, ".")
+		q.Lock()
+		defer func() {
+			q.Unlock()
+			log.Println("["+self.opts.UUID+":"+self.opts.Name+"] exit queue", self.opts.Queue, ".")
+		}()
+		q.lastAt = time.Now()
+		log.Println("["+self.opts.UUID+":"+self.opts.Name+"] already entry queue", self.opts.Queue, ".")
+	}
+
+	ctx := context.Background()
+	if self.opts.Timeout > 0 {
+		var cancel func()
+		ctx, cancel = context.WithTimeout(ctx, self.opts.Timeout)
+		defer cancel()
+	}
+	self.job.Run(ctx)
 }

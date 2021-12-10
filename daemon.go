@@ -69,6 +69,16 @@ func Schedule(c *cron.Cron, id string, schedule cron.Schedule, cmd cron.Job) {
 	c.Schedule(id, schedule, cmd)
 }
 
+func Parse(spec string) (sch cron.Schedule, e error) {
+	defer func() {
+		if o := recover(); nil != o {
+			e = errors.New(fmt.Sprint(o))
+		}
+	}()
+
+	return cron.Parse(spec)
+}
+
 func New() (*cron.Cron, error) {
 	if "." == *root_dir {
 		*root_dir = abs(filepath.Dir(os.Args[0]))
@@ -95,7 +105,7 @@ func New() (*cron.Cron, error) {
 	}
 
 	if 0 == len(*java_home) {
-		flag.Set("java_home", search_java_home(*root_dir))
+		flag.Set("java_home", searchJavaHome(*root_dir))
 		log.Println("[warn] java is", *java_home)
 	}
 
@@ -105,48 +115,24 @@ func New() (*cron.Cron, error) {
 	}
 	flag.Set("log_path", ensureLogPath(*root_dir, arguments))
 
-	backend, e := newBackend(*db_drv, *db_url)
-	if nil != e {
-		fmt.Println("db_drv is", *db_drv)
-		fmt.Println("db_url is", *db_url)
-		return nil, e
-	}
-
-	job_directories := []string{filepath.Join(*root_dir, "lib", "jobs"),
+	jobDirectories := []string{filepath.Join(*root_dir, "lib", "jobs"),
 		filepath.Join(*root_dir, "data", "jobs")}
-	jobs_from_dir, e := loadJobsFromDirectory(job_directories, arguments)
-	if nil != e {
-		log.Println(e)
-	}
-	jobs_from_db, e := loadJobsFromDB(backend, arguments)
+	jobsFromDir, e := loadJobsFromDirectory(jobDirectories, arguments)
 	if nil != e {
 		log.Println(e)
 	}
 
-	error_jobs := map[string]error{}
+	errorJobs := map[string]error{}
 	cr := cron.New()
-	if len(jobs_from_dir) > 0 {
-		for _, job := range jobs_from_dir {
-			sch, e := Parse(job.expression)
+	if len(jobsFromDir) > 0 {
+		for _, job := range jobsFromDir {
+			sch, e := Parse(job.opts.Expression)
 			if nil != e {
-				error_jobs[job.name] = e
-				log.Println("["+job.name+"] schedule failed,", e)
+				errorJobs[job.opts.Name] = e
+				log.Println("["+job.opts.Name+"] schedule failed,", e)
 				continue
 			}
-			Schedule(cr, job.name, sch, job)
-		}
-	}
-
-	if len(jobs_from_db) > 0 {
-		for _, job := range jobs_from_db {
-			sch, e := Parse(job.expression)
-			if nil != e {
-				e := errors.New("[" + job.name + "] schedule failed, " + e.Error())
-				error_jobs[fmt.Sprint(job.id)] = e
-				log.Println(e)
-				continue
-			}
-			Schedule(cr, fmt.Sprint(job.id), sch, job)
+			Schedule(cr, job.opts.Name, sch, job)
 		}
 	}
 
@@ -160,7 +146,7 @@ func New() (*cron.Cron, error) {
 
 	expvar.Publish("jobs", expvar.Func(func() interface{} {
 		ret := map[string]interface{}{}
-		for nm, e := range error_jobs {
+		for nm, e := range errorJobs {
 			ret[nm] = e.Error()
 		}
 
@@ -213,26 +199,26 @@ func New() (*cron.Cron, error) {
 					log.Println("[sys] new job -", nm)
 					job, e := loadJobFromFile(ev.Name, arguments)
 					if nil != e {
-						error_jobs[nm] = e
+						errorJobs[nm] = e
 						log.Println("["+nm+"] schedule failed,", e)
 						break
 					}
-					sch, e := Parse(job.expression)
+					sch, e := Parse(job.opts.Expression)
 					if nil != e {
-						error_jobs[job.name] = e
-						log.Println("["+job.name+"] schedule failed,", e)
+						errorJobs[job.opts.Name] = e
+						log.Println("["+job.opts.Name+"] schedule failed,", e)
 						break
 					}
-					Schedule(cr, job.name, sch, job)
+					Schedule(cr, job.opts.Name, sch, job)
 				} else if ev.Op&fsnotify.Remove == fsnotify.Remove {
 					nm := strings.ToLower(filepath.Base(ev.Name))
 					log.Println("[sys] delete job -", nm)
 					cr.Unschedule(nm)
-					delete(error_jobs, nm)
+					delete(errorJobs, nm)
 				} else if ev.Op&fsnotify.Write == fsnotify.Write || ev.Op&fsnotify.Rename == fsnotify.Rename {
 					nm := strings.ToLower(filepath.Base(ev.Name))
 					cr.Unschedule(nm)
-					delete(error_jobs, nm)
+					delete(errorJobs, nm)
 
 					log.Println("[sys] reload job -", nm)
 					if !strings.HasSuffix(nm, jobFileExt) {
@@ -242,25 +228,21 @@ func New() (*cron.Cron, error) {
 
 					job, e := loadJobFromFile(ev.Name, arguments)
 					if nil != e {
-						error_jobs[nm] = e
+						errorJobs[nm] = e
 						log.Println("["+nm+"] schedule failed,", e)
 						break
 					}
-					sch, e := Parse(job.expression)
+					sch, e := Parse(job.opts.Expression)
 					if nil != e {
-						error_jobs[job.name] = e
-						log.Println("["+job.name+"] schedule failed,", e)
+						errorJobs[job.opts.Name] = e
+						log.Println("["+job.opts.Name+"] schedule failed,", e)
 						break
 					}
-					Schedule(cr, job.name, sch, job)
+					Schedule(cr, job.opts.Name, sch, job)
 				}
 			case err := <-watcher.Errors:
 				log.Println("error:", err)
 			case <-time.After(pollInterval):
-				if e := reloadJobsFromDB(cr, error_jobs, backend, arguments); nil != e {
-					log.Println(e)
-				}
-
 				for name, loader := range loaders {
 					if err := loader.Load(cr, arguments); err != nil {
 						log.Println("reload '"+name+"' fail,", err)
@@ -270,7 +252,7 @@ func New() (*cron.Cron, error) {
 		}
 	}()
 
-	for _, dir := range job_directories {
+	for _, dir := range jobDirectories {
 		e = watcher.Add(dir)
 		if e != nil {
 			if dirExists(dir) {
@@ -282,151 +264,53 @@ func New() (*cron.Cron, error) {
 	return cr, nil
 }
 
-func reloadJobsFromDB(cr *cron.Cron, error_jobs map[string]error, backend *dbBackend, arguments map[string]interface{}) error {
-	jobs, e := backend.snapshot(nil)
-	if nil != e {
-		return errors.New("load snapshot from db failed, " + e.Error())
-	}
-	versions := map[int64]version{}
-	for _, v := range jobs {
-		versions[v.id] = v
-	}
-
-	for _, ent := range cr.Entries() {
-		if job, ok := ent.Job.(*JobFromDB); ok {
-			if v, ok := versions[job.id]; ok {
-				if !v.updated_at.Equal(job.updated_at) {
-					reloadJobFromDB(cr, error_jobs, backend, arguments, job.id, job.name)
-				}
-				delete(versions, job.id)
-			} else {
-				log.Println("[sys] delete job -", job.name)
-				cr.Unschedule(fmt.Sprint(job.id))
-				delete(error_jobs, fmt.Sprint(job.id))
-			}
-		}
-	}
-
-	for id, _ := range versions {
-		reloadJobFromDB(cr, error_jobs, backend, arguments, id, "")
-	}
-	return nil
-}
-
-func reloadJobFromDB(cr *cron.Cron, error_jobs map[string]error, backend *dbBackend, arguments map[string]interface{}, id int64, name string) {
-	message_prefix := "[sys] reload job -"
-	if "" == name {
-		message_prefix = "[sys] load new job -"
-	}
-
-	job, e := backend.find(id)
-	if nil != e {
-		if "" == name {
-			log.Println(message_prefix, "[", id, "]", e)
-		} else {
-			log.Println(message_prefix, name, e)
-		}
-		return
-	}
-	e = afterLoad(job, arguments)
-	if nil != e {
-		log.Println(message_prefix, job.name, e)
-		return
-	}
-
-	id_str := fmt.Sprint(id)
-	log.Println(message_prefix, job.name)
-	cr.Unschedule(id_str)
-	delete(error_jobs, id_str)
-
-	sch, e := Parse(job.expression)
-	if nil != e {
-		msg := errors.New("[" + job.name + "] schedule failed," + e.Error())
-		error_jobs[id_str] = msg
-		log.Println(msg)
-		return
-	}
-	if nil == sch {
-		msg := errors.New("[" + job.name + "] schedule failed, expression '" + job.expression + "' is invalid.")
-		error_jobs[id_str] = msg
-		log.Println(msg)
-		return
-	}
-	Schedule(cr, id_str, sch, job)
-}
-
-func Parse(spec string) (sch cron.Schedule, e error) {
-	defer func() {
-		if o := recover(); nil != o {
-			e = errors.New(fmt.Sprint(o))
-		}
-	}()
-
-	return cron.Parse(spec)
-}
-
-func search_java_home(root string) string {
-	java_execute := "java.exe"
+func searchJavaHome(root string) string {
+	javaExecute := "java.exe"
 	if "windows" != runtime.GOOS {
-		java_execute = "java"
+		javaExecute = "java"
 	}
 
-	jp := filepath.Join(root, "runtime_env/jdk/bin", java_execute)
+	jp := filepath.Join(root, "runtime_env/jdk/bin", javaExecute)
 	if fileExists(jp) {
 		return jp
 	}
 
-	jp = filepath.Join(root, "runtime_env/jre/bin", java_execute)
+	jp = filepath.Join(root, "runtime_env/jre/bin", javaExecute)
 	if fileExists(jp) {
 		return jp
 	}
 
-	jp = filepath.Join(root, "runtime_env/java/bin", java_execute)
+	jp = filepath.Join(root, "runtime_env/java/bin", javaExecute)
 	if fileExists(jp) {
 		return jp
 	}
 
-	ss, _ := filepath.Glob(filepath.Join(root, "**", java_execute))
+	ss, _ := filepath.Glob(filepath.Join(root, "**", javaExecute))
 	if nil != ss && 0 != len(ss) {
 		return ss[0]
 	}
 
 	jh := os.Getenv("JAVA_HOME")
 	if "" != jh {
-		return filepath.Join(jh, "bin", java_execute)
+		return filepath.Join(jh, "bin", javaExecute)
 	}
 
-	return java_execute
-}
-
-func loadJobsFromDB(backend *dbBackend, arguments map[string]interface{}) ([]*JobFromDB, error) {
-	jobs, e := backend.where(nil)
-	if nil != e {
-		return nil, e
-	}
-	for _, job := range jobs {
-		e = afterLoad(job, arguments)
-		if nil != e {
-			return nil, e
-		}
-		log.Println("load '" + job.name + "' is ok.")
-	}
-	return jobs, nil
+	return javaExecute
 }
 
 func afterLoad(job *JobFromDB, arguments map[string]interface{}) error {
-	is_java := false
+	isJava := false
 	if "java" == strings.ToLower(job.execute) || "java.exe" == strings.ToLower(job.execute) {
 		job.execute = *java_home
-		is_java = true
+		isJava = true
 		// } else if "java15" == strings.ToLower(job.execute) || "java15.exe" == strings.ToLower(job.execute) {
 		// 	job.execute = *java15_home
-		// 	is_java = true
+		// 	isJava = true
 	} else {
 		job.execute = executeTemplate(job.execute, arguments)
-		execute_tolow := strings.ToLower(job.execute)
-		if strings.HasSuffix(execute_tolow, "java") || strings.HasSuffix(execute_tolow, "java.exe") {
-			is_java = true
+		executeToLow := strings.ToLower(job.execute)
+		if strings.HasSuffix(executeToLow, "java") || strings.HasSuffix(executeToLow, "java.exe") {
+			isJava = true
 		}
 	}
 
@@ -436,7 +320,7 @@ func afterLoad(job *JobFromDB, arguments map[string]interface{}) error {
 			job.arguments[idx] = executeTemplate(s, arguments)
 		}
 
-		if is_java {
+		if isJava {
 			for i := 0; i < len(job.arguments); i += 2 {
 				if (i + 1) == len(job.arguments) {
 					continue
@@ -447,11 +331,11 @@ func afterLoad(job *JobFromDB, arguments map[string]interface{}) error {
 					"--classpath" == strings.TrimSpace(job.arguments[i]) {
 					classpath, e := loadJavaClasspath(strings.Split(job.arguments[i+1], ";"))
 					if nil != e {
-						return errors.New("load classpath of '" + job.name + "' failed, " + e.Error())
+						return errors.New("load classpath of '" + job.opts.Name + "' failed, " + e.Error())
 					}
 
 					if nil == classpath && 0 == len(classpath) {
-						return errors.New("load classpath of '" + job.name + "' failed, it is empty.")
+						return errors.New("load classpath of '" + job.opts.Name + "' failed, it is empty.")
 					}
 
 					job.arguments[i] = strings.TrimSpace(job.arguments[i])
@@ -465,10 +349,10 @@ func afterLoad(job *JobFromDB, arguments map[string]interface{}) error {
 		}
 	}
 
-	if "" != job.name {
-		job.logfile = filepath.Join(*log_path, "job_"+job.name+".log")
+	if "" != job.opts.Name {
+		job.logfile = filepath.Join(*log_path, "job_"+job.opts.Name+".log")
 	} else {
-		job.logfile = filepath.Join(*log_path, "job_"+strconv.FormatInt(job.id, 10)+".log")
+		job.logfile = filepath.Join(*log_path, "job_"+strconv.FormatInt(job.opts.ID, 10)+".log")
 	}
 	if nil != job.environments {
 		for idx, s := range job.environments {
@@ -610,19 +494,19 @@ func loadJobFromFile(file string, args map[string]interface{}) (*ShellJob, error
 func loadJobFromMap(file string, args []map[string]interface{}) (*ShellJob, error) {
 	name := strings.ToLower(filepath.Base(file))
 	if 0 == len(name) {
-		return nil, errors.New("'name' is missing.")
+		return nil, errors.New("'name' is missing")
 	}
 	expression := stringWithArguments(args, "expression", "")
 	if "" == expression {
-		return nil, errors.New("'expression' is missing.")
+		return nil, errors.New("'expression' is missing")
 	}
 	timeout := durationWithArguments(args, "timeout", 10*time.Minute)
 	if timeout <= 0*time.Second {
-		return nil, errors.New("'killTimeout' must is greate 0s.")
+		return nil, errors.New("'killTimeout' must is greate 0s")
 	}
 	proc := stringWithArguments(args, "execute", "")
 	if 0 == len(proc) {
-		return nil, errors.New("'execute' is missing.")
+		return nil, errors.New("'execute' is missing")
 	}
 	arguments := stringsWithArguments(args, "arguments", "", nil, false)
 	environments := stringsWithArguments(args, "environments", "", nil, false)
@@ -645,12 +529,15 @@ func loadJobFromMap(file string, args []map[string]interface{}) (*ShellJob, erro
 	}
 
 	logfile := filepath.Join(*log_path, "job_"+name+".log")
-	return &ShellJob{name: name,
-		mode:         stringWithArguments(args, "mode", ""),
+	return &ShellJob{
+		opts: JobOption{
+			Name:       name,
+			Mode:       stringWithArguments(args, "mode", ""),
+			Queue:      stringWithArguments(args, "queue", ""),
+			Timeout:    timeout,
+			Expression: expression,
+		},
 		enabled:      boolWithArguments(args, "enabled", true),
-		queue:        stringWithArguments(args, "queue", ""),
-		timeout:      timeout,
-		expression:   expression,
 		execute:      proc,
 		directory:    directory,
 		environments: environments,
@@ -786,17 +673,17 @@ func loadConfig(root string) (map[string]interface{}, error) {
 }
 
 func loadDefault(root, file string) map[string]interface{} {
-	os_ext := ".exe"
-	sh_ext := ".bat"
+	osExt := ".exe"
+	shExt := ".bat"
 	if runtime.GOOS != "windows" {
-		os_ext = ""
-		sh_ext = ".sh"
+		osExt = ""
+		shExt = ".sh"
 	}
 	return map[string]interface{}{"root_dir": root,
 		"config_file": file,
 		"java":        *java_home,
-		"os_ext":      os_ext,
-		"sh_ext":      sh_ext,
+		"os_ext":      osExt,
+		"sh_ext":      shExt,
 		"os":          runtime.GOOS,
 		"arch":        runtime.GOARCH}
 }

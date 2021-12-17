@@ -138,7 +138,9 @@ func New() (*cron.Cron, error) {
 
 	for name, loader := range loaders {
 		if err := loader.Load(cr, arguments); err != nil {
-			log.Println("load '"+name+"' fail,", err)
+			log.Println("["+name+"] load fail,", err)
+		} else {
+			log.Println("["+name+"] load successful")
 		}
 	}
 
@@ -245,7 +247,9 @@ func New() (*cron.Cron, error) {
 			case <-time.After(pollInterval):
 				for name, loader := range loaders {
 					if err := loader.Load(cr, arguments); err != nil {
-						log.Println("reload '"+name+"' fail,", err)
+						log.Println("["+name+"] reload fail,", err)
+					} else {
+						log.Println("["+name+"] reload successful")
 					}
 				}
 			}

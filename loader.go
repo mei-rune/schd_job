@@ -129,8 +129,9 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 
 			opts, sch, job, err := loader.Read(id, arguments)
 			if err != nil {
-				log.Println("["+loader.Name+"] reload '"+strconv.FormatInt(id, 10)+"' fail,", err)
+				log.Println("["+loader.Name+"] reload 'origin-"+strconv.FormatInt(id, 10)+"' fail,", err)
 
+				// delete(versions, id)
 				if loader.fails == nil {
 					loader.fails = map[int64]string{}
 				}
@@ -149,9 +150,9 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 				delete(loader.fails, id)
 			}
 
-			log.Println("[" + loader.Name + "] reload '" + strconv.FormatInt(id, 10) + "' ok")
+			log.Println("[" + loader.Name + "] reload '" + opts.UUID + ":"+opts.Name+"' ok and next time is", sch.Next(time.Now()))
 		} else {
-			log.Println("["+loader.Name+"] delete job -", id)
+			log.Println("["+loader.Name+"] delete job -", ent.Id)
 			cr.Unschedule(ent.Id)
 
 			if loader.fails != nil {
@@ -163,7 +164,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 	for id := range versions {
 		opts, sch, job, err := loader.Read(id, arguments)
 		if err != nil {
-			log.Println("["+loader.Name+"] load '"+strconv.FormatInt(id, 10)+"' fail,", err)
+			log.Println("["+loader.Name+"] load 'origin-"+strconv.FormatInt(id, 10)+"' fail,", err)
 			if loader.fails == nil {
 				loader.fails = map[int64]string{}
 			}
@@ -177,7 +178,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 		opts.UUID = GenerateJobID(loader.Name, id)
 		Schedule(cr, opts.UUID, sch, jobWarp(job, opts))
 
-		log.Println("["+loader.Name+"] load '"+opts.UUID+"' successful and next time is", sch.Next(time.Now()))
+		log.Println("["+loader.Name+"] load '"+opts.UUID+":"+opts.Name+"' successful and next time is", sch.Next(time.Now()))
 	}
 
 	return nil

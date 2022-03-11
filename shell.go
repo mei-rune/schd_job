@@ -326,7 +326,9 @@ func (self *ShellJob) Exec(ctx context.Context) {
 		}
 	}
 	defer out.Close()
-	io.WriteString(out, "=============== begin ===============\r\n")
+	io.WriteString(out, "=============== begin ( ")
+	io.WriteString(out, time.Now().Format(time.RFC3339))
+	io.WriteString(out," ) ===============\r\n")
 	defer io.WriteString(out, "===============  end  ===============\r\n")
 
 	execPath := self.execute

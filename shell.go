@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -309,15 +308,7 @@ func fillCommands(executableFolder string) {
 func (self *ShellJob) Exec(ctx context.Context) {
 	out, e := os.OpenFile(self.logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 	if nil != e {
-		self.logfile = strings.Replace(self.logfile, "/", "_", -1)
-		self.logfile = strings.Replace(self.logfile, "\\", "_", -1)
-		self.logfile = strings.Replace(self.logfile, "*", "_", -1)
-		self.logfile = strings.Replace(self.logfile, ":", "_", -1)
-		self.logfile = strings.Replace(self.logfile, "\"", "_", -1)
-		self.logfile = strings.Replace(self.logfile, "|", "_", -1)
-		self.logfile = strings.Replace(self.logfile, "?", "_", -1)
-		self.logfile = strings.Replace(self.logfile, ">", "_", -1)
-		self.logfile = strings.Replace(self.logfile, "<", "_", -1)
+		self.logfile = ToFilename(self.logfile)
 
 		out, e = os.OpenFile(self.logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
 		if nil != e {
@@ -328,7 +319,7 @@ func (self *ShellJob) Exec(ctx context.Context) {
 	defer out.Close()
 	io.WriteString(out, "=============== begin ( ")
 	io.WriteString(out, time.Now().Format(time.RFC3339))
-	io.WriteString(out," ) ===============\r\n")
+	io.WriteString(out, " ) ===============\r\n")
 	defer io.WriteString(out, "===============  end  ===============\r\n")
 
 	execPath := self.execute

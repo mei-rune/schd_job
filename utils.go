@@ -322,3 +322,16 @@ func stringsWithArguments(arguments []map[string]interface{}, key, sep string, d
 	}
 	return defaultValue
 }
+
+func ToFilename(name string) string {
+	name = strings.Replace(name, "/", "_", -1)
+	name = strings.Replace(name, "\\", "_", -1)
+	name = strings.Replace(name, "*", "_", -1)
+	name = strings.Replace(name, ":", "_", -1)
+	name = strings.Replace(name, "\"", "_", -1)
+	name = strings.Replace(name, "|", "_", -1)
+	name = strings.Replace(name, "?", "_", -1)
+	name = strings.Replace(name, ">", "_", -1)
+	name = strings.Replace(name, "<", "_", -1)
+	return name
+}

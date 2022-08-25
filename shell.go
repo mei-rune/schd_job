@@ -305,22 +305,15 @@ func fillCommands(executableFolder string) {
 	}
 }
 
-func (self *ShellJob) Exec(ctx context.Context) {
-	out, e := os.OpenFile(self.logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
-	if nil != e {
-		self.logfile = ToFilename(self.logfile)
 
-		out, e = os.OpenFile(self.logfile, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0666)
-		if nil != e {
+
+func (self *ShellJob) Exec(ctx context.Context) {
+	out, e := OpenFile(self.logfile, self.opts.Name)
+	if nil != e {
 			log.Println("["+self.opts.Name+"] open log file("+self.logfile+") failed,", e)
 			return
-		}
 	}
-	defer out.Close()
-	io.WriteString(out, "=============== begin ( ")
-	io.WriteString(out, time.Now().Format(time.RFC3339))
-	io.WriteString(out, " ) ===============\r\n")
-	defer io.WriteString(out, "===============  end  ===============\r\n")
+	defer CloseFile(out)
 
 	execPath := self.execute
 	if s := Commands[self.execute]; s != "" {
@@ -393,7 +386,6 @@ func (self *ShellJob) Exec(ctx context.Context) {
 
 	select {
 	case e := <-c:
-		out.Seek(0, os.SEEK_END)
 		if nil != e {
 			io.WriteString(out, "run failed, "+e.Error()+"\r\n")
 		} else if nil != cmd.ProcessState {

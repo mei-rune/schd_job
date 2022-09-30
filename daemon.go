@@ -558,6 +558,10 @@ func loadJavaClasspath(cp []string) ([]string, error) {
 		if 0 == len(p) {
 			continue
 		}
+		if !strings.Contains(p, "*") {
+			classpath = append(classpath, p)
+			continue
+		}
 		files, e := filepath.Glob(p)
 		if nil != e {
 			return nil, e

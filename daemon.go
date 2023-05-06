@@ -404,8 +404,10 @@ func ensureLogPath(root string, arguments map[string]interface{}) string {
 		if runtime.GOOS != "windows" {
 			logPath = "/var/log/tpt"
 		} else {
-			logs := []string{filepath.Clean(abs(filepath.Join(root, "..", "logs"))),
-				filepath.Clean(abs(filepath.Join(root, "logs")))}
+			logs := []string{
+				filepath.Clean(abs(filepath.Join(root, "logs"))),
+				filepath.Clean(abs(filepath.Join(root, "..", "logs"))),
+			}
 			for _, s := range logs {
 				if dirExists(s) {
 					logPath = s

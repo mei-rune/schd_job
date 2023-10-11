@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	hjson "github.com/hjson/hjson-go"
+	hjson "github.com/hjson/hjson-go/v4"
 )
 
 func fixJSON(data []byte) []byte {

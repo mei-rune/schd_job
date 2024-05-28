@@ -140,7 +140,7 @@ func New() (*cron.Cron, error) {
 		if err := loader.Load(cr, arguments); err != nil {
 			log.Println("["+name+"] load fail,", err)
 		} else {
-			log.Println("["+name+"] load successful")
+			log.Println("[" + name + "] load successful")
 		}
 	}
 
@@ -249,7 +249,7 @@ func New() (*cron.Cron, error) {
 					if err := loader.Load(cr, arguments); err != nil {
 						log.Println("["+name+"] reload fail,", err)
 					} else {
-						log.Println("["+name+"] reload successful")
+						log.Println("[" + name + "] reload successful")
 					}
 				}
 			}

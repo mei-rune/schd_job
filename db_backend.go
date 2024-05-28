@@ -7,11 +7,12 @@ import (
 	"database/sql/driver"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
+	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
-	_ "github.com/denisenkom/go-mssqldb"
 	_ "github.com/sijms/go-ora/v2"
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"

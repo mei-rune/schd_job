@@ -150,7 +150,7 @@ func (loader *DefaultLoader) Load(cr *cron.Cron, arguments map[string]interface{
 				delete(loader.fails, id)
 			}
 
-			log.Println("[" + loader.Name + "] reload '" + opts.UUID + ":"+opts.Name+"' ok and next time is", sch.Next(time.Now()))
+			log.Println("["+loader.Name+"] reload '"+opts.UUID+":"+opts.Name+"' ok and next time is", sch.Next(time.Now()))
 		} else {
 			log.Println("["+loader.Name+"] delete job -", ent.Id)
 			cr.Unschedule(ent.Id)

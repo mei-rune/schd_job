@@ -305,13 +305,11 @@ func fillCommands(executableFolder string) {
 	}
 }
 
-
-
 func (self *ShellJob) Exec(ctx context.Context) {
 	out, e := OpenFile(self.logfile, self.opts.Name)
 	if nil != e {
-			log.Println("["+self.opts.Name+"] open log file("+self.logfile+") failed,", e)
-			return
+		log.Println("["+self.opts.Name+"] open log file("+self.logfile+") failed,", e)
+		return
 	}
 	defer CloseFile(out)
 

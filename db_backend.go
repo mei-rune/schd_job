@@ -24,6 +24,8 @@ const (
 	MSSQL      = 3
 	ORACLE     = 4
 	DB2        = 5
+	SYBASE     = 6
+	DM         = 7
 )
 
 var (
@@ -41,7 +43,21 @@ func DbType(drv string) int {
 		return MSSQL
 	case "oci8", "odbc_with_oracle", "oracle", "ora":
 		return ORACLE
+	case "dm":
+		return DM
 	default:
+		if strings.Contains(drv, "oracle") {
+			return ORACLE
+		}
+		if strings.Contains(drv, "sqlserver") {
+			return MSSQL
+		}
+		if strings.Contains(drv, "db2") {
+			return DB2
+		}
+		if strings.Contains(drv, "sybase") {
+			return SYBASE
+		}
 		return AUTO
 	}
 }

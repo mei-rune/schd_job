@@ -37,7 +37,7 @@ var (
 
 func DbType(drv string) int {
 	switch drv {
-	case "kingbase":
+	case "kingbase", "kingbase8":
 		return KINGBASE
 	case "postgres":
 		return POSTGRESQL

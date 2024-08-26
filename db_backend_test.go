@@ -4,6 +4,11 @@ import (
 	"reflect"
 	"testing"
 	"time"
+
+	_ "github.com/microsoft/go-mssqldb"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+	_ "github.com/sijms/go-ora/v2"
 )
 
 func backendTest(t *testing.T, cb func(backend *dbBackend)) {

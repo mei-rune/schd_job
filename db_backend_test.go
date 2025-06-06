@@ -9,7 +9,62 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	_ "github.com/sijms/go-ora/v2"
+	_ "gitee.com/opengauss/openGauss-connector-go-pq" // openGauss
+	_ "gitee.com/runner.mei/gokb" // gokb
 )
+
+	_ "github.com/microsoft/go-mssqldb"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
+	_ "github.com/sijms/go-ora/v2"
+	_ "github.com/ziutek/mymysql/godrv"
+	_ "gitee.com/chunanyong/dm" // 达梦
+	_ "gitee.com/opengauss/openGauss-connector-go-pq" // openGauss
+)
+
+var (
+	OpenGaussUrl      = "host=192.168.1.202 port=8888 user=golang password=123456_go dbname=golang sslmode=disable"
+	PostgreSQLUrl = "host=127.0.0.1 user=golang password=123456 dbname=golang sslmode=disable"
+	MySQLUrl      = "golang:123456@tcp(localhost:3306)/golang?autocommit=true&parseTime=true&multiStatements=true"
+	MsSqlUrl      = "sqlserver://golang:123456@127.0.0.1?database=golang&connection+timeout=30"
+	DMSqlUrl      = "dm://" + os.Getenv("dm_username") + ":" + os.Getenv("dm_password") + "@" + os.Getenv("dm_host") + "?noConvertToHex=true"
+)
+
+var (
+	TestDrv     string
+	TestConnURL string
+)
+
+func init() {
+	flag.StringVar(&TestDrv, "dbDrv", "postgres", "")
+	flag.StringVar(&TestConnURL, "dbURL", "", "缺省值会根据 dbDrv 的值自动选择，请见 GetTestConnURL()")
+	//flag.StringVar(&TestConnURL, "dbURL", "golang:123456@tcp(localhost:3306)/golang?autocommit=true&parseTime=true&multiStatements=true", "")
+	//flag.StringVar(&TestConnURL, "dbURL", "sqlserver://golang:123456@127.0.0.1?database=golang&connection+timeout=30", "")
+}
+
+func GetTestConnDrv() string {
+	return TestDrv
+}
+
+func GetTestConnURL() string {
+	if TestConnURL == "" {
+		switch TestDrv {
+		case "opengauss":
+			return OpenGaussUrl
+		case "postgres", "":
+			return PostgreSQLUrl
+		case "mysql":
+			return MySQLUrl
+		case "sqlserver", "mssql":
+			return MsSqlUrl
+		case "dm":
+			return DMSqlUrl
+		}
+	}
+
+	return TestConnURL
+}
+
 
 func backendTest(t *testing.T, cb func(backend *dbBackend)) {
 	// e := Main()
@@ -18,7 +73,7 @@ func backendTest(t *testing.T, cb func(backend *dbBackend)) {
 	// 	return
 	// }
 
-	backend, e := newBackend(*db_drv, *db_url)
+	backend, e := newBackend(GetTestConnDrv(), GetTestConnURL())
 	if nil != e {
 		t.Error(e)
 		return

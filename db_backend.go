@@ -25,6 +25,7 @@ const (
 	DM         = 7
 	KINGBASE   = 8
 	OPENGAUSS = 9
+	GAUSSDB   = 10
 )
 
 var (
@@ -40,6 +41,8 @@ func DbType(drv string) int {
 		return POSTGRESQL
 	case "opengauss":
 		return OPENGAUSS
+	case "gaussdb":
+		return GAUSSDB
 	case "mysql", "mymysql":
 		return MYSQL
 	case "odbc_with_mssql", "mssql", "sqlserver":
@@ -101,7 +104,7 @@ func i18nString(dbType int, drv string, e error) string {
 
 func IsNumericParams(dbType int) bool {
 	switch dbType {
-	case ORACLE, DM, POSTGRESQL, KINGBASE, OPENGAUSS:
+	case ORACLE, DM, POSTGRESQL, KINGBASE, OPENGAUSS, GAUSSDB:
 		return true
 	default:
 		return false

@@ -51,7 +51,7 @@ func GetTestConnURL() string {
 		switch TestDrv {
 		case "opengauss":
 			return OpenGaussUrl
-		case "postgres", "":
+		case "postgres", "", "pgx", "pgx/v5":
 			return PostgreSQLUrl
 		case "mysql":
 			return MySQLUrl

@@ -24,8 +24,9 @@ const (
 	SYBASE     = 6
 	DM         = 7
 	KINGBASE   = 8
-	OPENGAUSS = 9
-	GAUSSDB   = 10
+	OPENGAUSS  = 9
+	GAUSSDB    = 10
+	MariaDB    = 11
 )
 
 var (
@@ -45,6 +46,8 @@ func DbType(drv string) int {
 		return GAUSSDB
 	case "mysql", "mymysql":
 		return MYSQL
+	case "mariadb":
+		return MariaDB
 	case "odbc_with_mssql", "mssql", "sqlserver":
 		return MSSQL
 	case "oci8", "odbc_with_oracle", "oracle", "ora":

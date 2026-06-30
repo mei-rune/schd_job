@@ -44,7 +44,7 @@ func DbType(drv string) int {
 		return OPENGAUSS
 	case "gaussdb":
 		return GAUSSDB
-	case "mysql", "mymysql":
+	case "mysql", "mymysql", "oceanbase_mysql":
 		return MYSQL
 	case "mariadb":
 		return MariaDB

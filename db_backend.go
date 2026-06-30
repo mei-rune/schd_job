@@ -50,7 +50,7 @@ func DbType(drv string) int {
 		return MariaDB
 	case "odbc_with_mssql", "mssql", "sqlserver":
 		return MSSQL
-	case "oci8", "odbc_with_oracle", "oracle", "ora":
+	case "oci8", "odbc_with_oracle", "oracle", "ora", "oceanbase_oracle":
 		return ORACLE
 	case "dm":
 		return DM

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"errors"
+	"flag"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
 )
+
+var table_name = flag.String("table_name", "schd_jobs", "the database table name for jobs")
 
 const (
 	AUTO       = 0
@@ -50,7 +53,7 @@ func DbType(drv string) int {
 		return MariaDB
 	case "odbc_with_mssql", "mssql", "sqlserver":
 		return MSSQL
-	case "oci8", "odbc_with_oracle", "oracle", "ora", "oceanbase_oracle":
+	case "oci8", "odbc_with_oracle", "oracle", "ora", "oceanbase_oracle", "aci", "shengtong_oscar":
 		return ORACLE
 	case "dm":
 		return DM
@@ -355,3 +358,116 @@ var Onload func(id int64,
 	environments sql.NullString,
 	createdAt time.Time,
 	updatedAt time.Time) (Job, error)
+
+type dbBackend struct {
+	drv string
+	db  *sql.DB
+}
+
+func newBackend(drv, connURL string) (*dbBackend, error) {
+	db, e := sql.Open(drv, connURL)
+	if nil != e {
+		if strings.Contains(e.Error(), "sql: unknown driver \"mariadb\" (forgotten import?)") ||
+			strings.Contains(e.Error(), "sql: unknown driver \"oceanbase_mysql\" (forgotten import?)") {
+			db, e = sql.Open("mysql", connURL)
+			if nil != e {
+				return nil, e
+			}
+		} else if strings.Contains(e.Error(), "sql: unknown driver \"shengtong_oscar\" (forgotten import?)") {
+			db, e = sql.Open("aci", connURL)
+			if nil != e {
+				return nil, e
+			}
+		} else {
+			return nil, e
+		}
+	}
+
+	if e = db.Ping(); nil != e {
+		db.Close()
+		return nil, e
+	}
+
+	return &dbBackend{drv: drv, db: db}, nil
+}
+
+func (b *dbBackend) Close() error {
+	return b.db.Close()
+}
+
+type dbJob struct {
+	name         string
+	expression   string
+	execute      string
+	directory    string
+	arguments    []string
+	environments []string
+}
+
+func (b *dbBackend) where(where interface{}) ([]*dbJob, error) {
+	enabledCond := "(enabled IS NULL OR enabled = true)"
+	if DbType(b.drv) == ORACLE || DbType(b.drv) == DM {
+		enabledCond = "(enabled IS NULL OR enabled = 1)"
+	}
+	rows, e := b.db.Query(`SELECT name, expression, execute, directory, arguments, environments FROM ` + *table_name + ` WHERE ` + enabledCond)
+	if nil != e {
+		return nil, e
+	}
+	defer rows.Close()
+
+	var results []*dbJob
+	for rows.Next() {
+		var d dbJob
+		var dir, args, envs sql.NullString
+		e = rows.Scan(&d.name, &d.expression, &d.execute, &dir, &args, &envs)
+		if nil != e {
+			return nil, e
+		}
+
+		if dir.Valid {
+			d.directory = dir.String
+		}
+
+		if args.Valid && "" != args.String {
+			d.arguments = SplitLines(args.String)
+		}
+
+		if envs.Valid && "" != envs.String {
+			d.environments = SplitLines(envs.String)
+		}
+
+		results = append(results, &d)
+	}
+
+	if e = rows.Err(); nil != e {
+		return nil, e
+	}
+
+	return results, nil
+}
+
+func loadJobsFromDB(b *dbBackend, opts map[string]interface{}) ([]*dbJob, error) {
+	jobs, e := b.where(nil)
+	if nil != e {
+		return nil, e
+	}
+
+	for _, job := range jobs {
+		job.execute = executeTemplate(job.execute, opts)
+		job.directory = executeTemplate(job.directory, opts)
+
+		if nil != job.arguments {
+			for idx, s := range job.arguments {
+				job.arguments[idx] = executeTemplate(s, opts)
+			}
+		}
+
+		if nil != job.environments {
+			for idx, s := range job.environments {
+				job.environments[idx] = executeTemplate(s, opts)
+			}
+		}
+	}
+
+	return jobs, nil
+}

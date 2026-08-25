@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"log"
 
 	"golang.org/x/text/encoding/simplifiedchinese"
 	"golang.org/x/text/transform"
@@ -156,7 +157,8 @@ func (n NullTime) Value() (driver.Value, error) {
 }
 
 const SelectSqlString = "SELECT id, name, mode, enabled, queue, expression, execute, directory, arguments, environments, kill_after_interval, created_at, updated_at "
-const WhereQueryString = " WHERE (enabled IS NULL OR enabled = true)"
+const WhereQueryString1 = " WHERE (enabled IS NULL OR enabled = true)"
+const WhereQueryString2 = " WHERE (enabled IS NULL OR enabled = 1)"
 
 func SplitLines(bs string) []string {
 	res := make([]string, 0, 10)
@@ -190,11 +192,17 @@ type dbJobLoader struct {
 }
 
 func (loader *dbJobLoader) Snapshots() (map[int64]time.Time, error) {
-	rows, e := loader.db.Query("select id, updated_at from " + loader.tableName + WhereQueryString)
+	whereQueryString := WhereQueryString1
+	if loader.dbType == ORACLE {
+		whereQueryString = WhereQueryString2
+	}
+
+	rows, e := loader.db.Query("select id, updated_at from " + loader.tableName + whereQueryString)
 	if nil != e {
 		if sql.ErrNoRows == e {
 			return nil, nil
 		}
+		log.Println("select id, updated_at from " + loader.tableName + whereQueryString)
 		return nil, i18n(loader.dbType, loader.drv, e)
 	}
 	defer rows.Close()

@@ -156,7 +156,8 @@ func (n NullTime) Value() (driver.Value, error) {
 	return n.Time, nil
 }
 
-const SelectSqlString = "SELECT id, name, mode, enabled, queue, expression, execute, directory, arguments, environments, kill_after_interval, created_at, updated_at "
+const SelectSqlString1 = "SELECT id, name, mode, enabled, queue, expression, execute, directory, arguments, environments, kill_after_interval, created_at, updated_at "
+const SelectSqlString2 = "SELECT id, name, \"mode\", enabled, queue, expression, \"execute\", directory, arguments, environments, kill_after_interval, created_at, updated_at "
 const WhereQueryString1 = " WHERE (enabled IS NULL OR enabled = true)"
 const WhereQueryString2 = " WHERE (enabled IS NULL OR enabled = 1)"
 
@@ -230,7 +231,13 @@ func (loader *dbJobLoader) Snapshots() (map[int64]time.Time, error) {
 }
 
 func (loader *dbJobLoader) Load(id int64, arguments map[string]interface{}) (JobOption, TimeSchedule, Job, error) {
-	row := loader.db.QueryRow(SelectSqlString + " FROM " + loader.tableName + " WHERE id = " + strconv.FormatInt(id, 10))
+	var sqlStr string
+	if loader.dbType == ORACLE {
+		sqlStr =  SelectSqlString2 + " FROM " + loader.tableName + " WHERE id = " + strconv.FormatInt(id, 10)
+	} else {
+		sqlStr =  SelectSqlString1 + " FROM " + loader.tableName + " WHERE id = " + strconv.FormatInt(id, 10)
+	}
+	row := loader.db.QueryRow(sqlStr)
 	opts, job, err := scanJob(loader.dbType, loader.drv, row, arguments)
 	if err != nil {
 		return JobOption{}, nil, nil, errWrap(err, "获取规则失败")
@@ -414,10 +421,12 @@ type dbJob struct {
 
 func (b *dbBackend) where(where interface{}) ([]*dbJob, error) {
 	enabledCond := "(enabled IS NULL OR enabled = true)"
+	sqlStr := `SELECT name, expression, execute, directory, arguments, environments FROM ` + *table_name + ` WHERE ` + enabledCond
 	if DbType(b.drv) == ORACLE || DbType(b.drv) == DM {
 		enabledCond = "(enabled IS NULL OR enabled = 1)"
+		sqlStr := `SELECT name, expression, "execute", directory, arguments, environments FROM ` + *table_name + ` WHERE ` + enabledCond
 	}
-	rows, e := b.db.Query(`SELECT name, expression, execute, directory, arguments, environments FROM ` + *table_name + ` WHERE ` + enabledCond)
+	rows, e := b.db.Query(sqlStr)
 	if nil != e {
 		return nil, e
 	}

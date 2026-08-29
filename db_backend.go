@@ -424,7 +424,7 @@ func (b *dbBackend) where(where interface{}) ([]*dbJob, error) {
 	sqlStr := `SELECT name, expression, execute, directory, arguments, environments FROM ` + *table_name + ` WHERE ` + enabledCond
 	if DbType(b.drv) == ORACLE || DbType(b.drv) == DM {
 		enabledCond = "(enabled IS NULL OR enabled = 1)"
-		sqlStr := `SELECT name, expression, "execute", directory, arguments, environments FROM ` + *table_name + ` WHERE ` + enabledCond
+		sqlStr = `SELECT name, expression, "execute", directory, arguments, environments FROM ` + *table_name + ` WHERE ` + enabledCond
 	}
 	rows, e := b.db.Query(sqlStr)
 	if nil != e {

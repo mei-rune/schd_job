@@ -455,11 +455,17 @@ var funcs = template.FuncMap{
 }
 
 func executeTemplate(s string, args map[string]interface{}) string {
+	delim1 := "{{"
+	delim2 := "}}"
 	if !strings.Contains(s, "{{") {
-		return s
+		if !strings.Contains(s, "[[") {
+			return s
+		}
+		delim1 = "[["
+		delim2 = "]]"
 	}
 	var buffer bytes.Buffer
-	t, e := template.New("default").Funcs(funcs).Parse(s)
+	t, e := template.New("default").Delims(delim1, delim2).Funcs(funcs).Parse(s)
 	if nil != e {
 		panic(errors.New("regenerate string failed, " + e.Error()))
 	}

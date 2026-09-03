@@ -460,8 +460,8 @@ func executeTemplate(s string, args map[string]interface{}) string {
 	if !strings.Contains(s, "{{") {
 		if !strings.Contains(s, "[[") {
 			// 修复中间数据
-			if strings.Contains(s, "\u003Cno value\u003E") {
-				s = strings.ReplaceAll(s, "\u003Cno value\u003E", "[[js .root_dir]]")
+			if strings.Contains(s, "\\u003Cno value\\u003E") {
+				s = strings.ReplaceAll(s, "\\u003Cno value\\u003E", "[[js .root_dir]]")
 			} else if strings.Contains(s, "<no value>") {
 				s = strings.ReplaceAll(s, "<no value>", "[[js .root_dir]]")
 			} else {
